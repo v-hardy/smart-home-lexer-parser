@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 
 // <======================================= Definiciones de tipo de datos =======================================>
@@ -161,14 +162,146 @@ typedef struct {
 } Token;
 
 
-// <======================================= Variables globales =======================================>
+// <======================================= Variables Globales =======================================>
 
 Token lookahead;
+
+static FILE *fuente = NULL;
+
+static int caracterActual;
+static int lineaActual = 1;
+static int columnaActual = 0;
 
 
 // <======================================= Funciones =======================================>
 
-// Con retorno vacio
+//* Abrir archivo */
+int abrirFuente(const char *nombreArchivo)
+{
+    fuente = fopen(nombreArchivo, "r");
+
+    if (fuente == NULL)
+        return 0;
+
+    caracterActual = fgetc(fuente);
+
+    return 1;
+}
+
+/* Cerrar archivo */
+void cerrarFuente(void)
+{
+    if (fuente != NULL)
+    {
+        fclose(fuente);
+        fuente = NULL;
+    }
+}
+
+/* Avanzar un caracter */
+void avanzarCaracter(void)
+{
+    if (caracterActual == '\n')
+    {
+        lineaActual++;
+        columnaActual = 0;
+    }
+    else
+    {
+        columnaActual++;
+    }
+
+    caracterActual = fgetc(fuente);
+}
+
+/* Obtiene caracter actual */
+int obtenerCaracterActual(void)
+{
+    return caracterActual;
+}
+
+/* Omitir espacios */
+void omitirEspacios(void)
+{
+    while (!finDeArchivo() &&
+           isspace(caracterActual))
+    {
+        avanzarCaracter();
+    }
+}
+
+/* Verificador de final de archivo */
+int finDeArchivo(void)
+{
+    return caracterActual == EOF;
+}
+
+/* Creador token EOF */
+Token crearTokenEOF(void)
+{
+    Token tk;
+
+    tk.tipo = TK_EOF;
+    tk.lexema[0] = '\0';
+    tk.linea = lineaActual;
+    tk.columna = columnaActual;
+
+    return tk;
+}
+
+/* Obetener siguiente token */
+Token obtenerSiguienteToken(void)
+{
+    omitirEspacios();
+
+    if (finDeArchivo())
+        return crearTokenEOF();
+
+    Token tk;
+
+    tk.linea = lineaActual;
+    tk.columna = columnaActual;
+
+    /*
+       agregar llamado a funciones de reconocimiento de:
+       - palabras reservadas
+       - identificadores
+       - operadores
+       - literales
+       - etc.
+    */
+
+    return tk;
+}
+
+/* Asignacion de siguiente token para ver si luego matchea con lo esperado */
+void siguienteToken(void)
+{
+    lookahead = obtenerSiguienteToken();
+}
+
+/* Coincidencia del siguiente con lo esperado */
+void match(TokenType esperado) {
+    if (lookahead.tipo == esperado) {
+        siguienteToken();
+    } else {
+        errorSintactico("Token inesperado");
+    }
+}
+
+/* Buscar en palabras reservadas */
+TokenType buscarKeyword(const char *lexema)
+{
+    size_t n = sizeof(keywords) / sizeof(keywords[0]);
+
+    for (size_t i = 0; i < n; i++)
+    {
+        if (strcmp(lexema, keywords[i].lexema) == 0)
+            return keywords[i].tipo;
+    }
+
+    return TK_ERROR; // o TK_IDENTIFICADOR
+}
 
 // Instrucciones ::= Instruccion
 //                 | Instruccion Instrucciones
@@ -179,22 +312,23 @@ Token lookahead;
 //
 // void parseInstrucciones(void)
 // {
-//     parseInstruccion();
-//
-//     while(iniciaInstruccion(lookahead.tipo))
-//     {
-//         parseInstruccion();
-//     }
+//    do
+//    {
+//        parseInstruccion();
+//    }
+//    while (iniciaInstruccion(lookahead.tipo));
 // }
 
 //Instrucciones ::= Instruccion+
-void parsePrograma(void) {
-    parseInstrucciones();
+void parsePrograma(void)
+{
+    do
     {
-        do {
-            parseInstruccion();
-        } while (iniciaInstruccion(lookahead.tipo));
+        parseInstruccion();
     }
+    while (iniciaInstruccion(lookahead.tipo));
+
+    match(TK_EOF);
 }
 
 void parseInstruccion(void) {
@@ -225,15 +359,6 @@ void parseInstruccion(void) {
     }
 }
 
-void match(TokenType esperado) {
-    if (lookahead.tipo == esperado) {
-        siguienteToken();
-    } else {
-        errorSintactico("Token inesperado");
-    }
-}
-
-// Con retorno booleano
 bool iniciaInstruccion(TokenType t)
 {
     switch(t)
@@ -252,4 +377,39 @@ bool iniciaInstruccion(TokenType t)
         default:
             return false;
     }
+}
+
+
+
+// Faltaría implementar el reconocimiento de:
+// 
+// º palabras reservadas (WHEN, DO, IF, etc.),
+// º identificadores de dispositivos (FOCO_patio, AIRE_comedor, etc.),
+// º operadores (==, !=, >=, <=, =),
+// º literales (23.5C, 80%, "texto", fechas, horas, emails, colores, modos).
+
+int main(int argc, char *argv[])
+{
+    if (argc != 2)
+    {
+        fprintf(stderr,
+                "Uso: %s archivo.dsl\n",
+                argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    if (!abrirFuente(argv[1]))
+    {
+        fprintf(stderr,
+                "No se pudo abrir el archivo\n");
+        return EXIT_FAILURE;
+    }
+
+    siguienteToken();
+
+    parsePrograma();
+
+    cerrarFuente();
+
+    return EXIT_SUCCESS;
 }
