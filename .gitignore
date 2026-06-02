@@ -1,0 +1,13 @@
+# Ejecutable compilado
+lexer
+
+# Artefactos de compilación
+*.o
+*.out
+*.dSYM/
+
+# Archivos de prueba locales
+*.dsl
+
+# Artefactos de tooling
+docs/superpowers/

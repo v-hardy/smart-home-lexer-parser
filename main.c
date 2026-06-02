@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <ctype.h>
+#include <string.h>
 
 
 // <======================================= Definiciones de tipo de datos =======================================>
@@ -148,7 +150,8 @@ Keyword keywords[] = {
 
 typedef union {
     double numero;
-    int booleano;
+    int    booleano;
+    char   texto[64];
 } ValorToken;
 
 typedef struct {
@@ -160,6 +163,18 @@ typedef struct {
     int linea;
     int columna;
 } Token;
+
+
+// <======================================= Prototipos =======================================>
+
+int   finDeArchivo(void);
+void  errorSintactico(const char *mensaje);
+void  parseInstruccion(void);
+bool  iniciaInstruccion(TokenType t);
+void  parseBloqueWhen(void);
+void  parseBloqueEvery(void);
+void  parseBloqueCondicional(void);
+void  parseAsignacion(void);
 
 
 // <======================================= Variables Globales =======================================>
@@ -280,6 +295,14 @@ void siguienteToken(void)
     lookahead = obtenerSiguienteToken();
 }
 
+/* Reporte de error sintactico con posicion */
+void errorSintactico(const char *mensaje)
+{
+    fprintf(stderr, "Error sintáctico [línea %d, col %d]: %s\n",
+            lineaActual, columnaActual, mensaje);
+    exit(EXIT_FAILURE);
+}
+
 /* Coincidencia del siguiente con lo esperado */
 void match(TokenType esperado) {
     if (lookahead.tipo == esperado) {
@@ -349,6 +372,7 @@ void parseInstruccion(void) {
         case TK_AIRE_ID:
         case TK_PERSIANA_ID:
         case TK_CERRADURA_ID:
+        case TK_RELOJ_ID:
         case TK_ALTAVOZ_ID:
         case TK_ALARMA_ID:
             parseAsignacion();
@@ -370,6 +394,7 @@ bool iniciaInstruccion(TokenType t)
         case TK_AIRE_ID:
         case TK_PERSIANA_ID:
         case TK_CERRADURA_ID:
+        case TK_RELOJ_ID:
         case TK_ALTAVOZ_ID:
         case TK_ALARMA_ID:
             return true;
@@ -379,6 +404,12 @@ bool iniciaInstruccion(TokenType t)
     }
 }
 
+
+
+void parseBloqueWhen(void)        { /* TODO issue #9 */ }
+void parseBloqueEvery(void)       { /* TODO issue #9 */ }
+void parseBloqueCondicional(void) { /* TODO issue #9 */ }
+void parseAsignacion(void)        { /* TODO issue #9 */ }
 
 
 // Faltaría implementar el reconocimiento de:
