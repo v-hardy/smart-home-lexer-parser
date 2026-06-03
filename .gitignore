@@ -1,5 +1,6 @@
-# Ejecutable compilado
+# Ejecutables compilados
 lexer
+test_lexer
 
 # Artefactos de compilación
 *.o
