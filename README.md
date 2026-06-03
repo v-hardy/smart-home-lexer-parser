@@ -198,7 +198,8 @@ cerrarFuente()                 // cierra el archivo al terminar
 |---------|---------|
 | `buscarKeyword(texto)` | Busca `texto` en `keywords[]`, retorna su `TokenType` o `TK_ERROR` |
 | `crearTokenEOF()` | Construye el token de fin de archivo |
-| `obtenerSiguienteToken()` | **Stub — pendiente.** Debe producir el próximo token completo |
+| `obtenerSiguienteToken()` | Reconoce **palabras**: keywords fijas y dispositivos dinámicos. Operadores, literales y números aún pendientes |
+| `reconocerDispositivo(texto)` | Reconoce dispositivos dinámicos por prefijo (`FOCO_`, `AIRE_`...), retorna su `TokenType` o `TK_ERROR` |
 | `siguienteToken()` | Llama a `obtenerSiguienteToken()` y guarda resultado en `lookahead` |
 
 ---
@@ -264,15 +265,18 @@ SENSOR_MOVIMIENTO == TRUE
 | Qué | Dónde |
 |-----|-------|
 | Todos los tipos de token definidos | `TokenType` enum |
-| Tabla de keywords (parcial) | `keywords[]` |
-| Estructura del token | `Token`, `ValorToken` |
+| Tabla de keywords completa (reservadas, sensores, atributos, `EVERY`) | `keywords[]` |
+| Reconocimiento de dispositivos dinámicos por prefijo | `dispositivos[]`, `reconocerDispositivo()` |
+| Estructura del token (incluye `texto[64]` para strings) | `Token`, `ValorToken` |
 | Apertura/cierre de archivo | `abrirFuente()`, `cerrarFuente()` |
 | Avance de carácter con tracking de posición | `avanzarCaracter()` |
 | Skip de espacios | `omitirEspacios()` |
 | Detección de fin de archivo | `finDeArchivo()` |
 | Búsqueda en tabla de keywords | `buscarKeyword()` |
+| Lexeo de palabras (keywords + dispositivos) | `obtenerSiguienteToken()` |
 | Token EOF | `crearTokenEOF()` |
-| Asignación de lookahead | `siguienteToken()` |
+| Reporte de error con posición | `errorSintactico()` |
+| Modo debug que vuelca tokens | `--tokens`, `volcarTokens()`, `nombreToken()` |
 | Estructura del parser | `parsePrograma()`, `parseInstruccion()`, `match()`, `iniciaInstruccion()` |
 | Punto de entrada con argumento de archivo | `main()` |
 
@@ -280,91 +284,48 @@ SENSOR_MOVIMIENTO == TRUE
 
 | Qué falta | Por qué importa |
 |-----------|----------------|
-| **`obtenerSiguienteToken()` — lógica real** | Es el corazón del lexer. Hoy es un stub vacío. Sin esto no se reconoce ningún token |
-| `errorSintactico()` | Se llama en `match()` y `parseInstruccion()` — sin ella el programa no compila |
-| `parseBloqueWhen()` | Lógica para `WHEN...DO...END` |
-| `parseBloqueEvery()` | Lógica para `EVERY...DO...END` |
-| `parseBloqueCondicional()` | Lógica para `IF...THEN...ELSE...END` |
-| `parseAsignacion()` | Lógica para `DISPOSITIVO.ATRIBUTO = VALOR` |
+| **Lexeo de operadores** (`==`, `!=`, `>=`, `<=`, `>`, `<`, `=`) | El lexer aún no los reconoce; hoy caen en `TK_ERROR` |
+| **Lexeo de literales y números** (`23.5C`, `80%`, `"texto"`, fechas, horas, emails) | Sin esto no se pueden expresar valores concretos |
+| `parseBloqueWhen()` | Lógica para `WHEN...DO...END` (hoy stub vacío) |
+| `parseBloqueEvery()` | Lógica para `EVERY...DO...END` (hoy stub vacío) |
+| `parseBloqueCondicional()` | Lógica para `IF...THEN...ELSE...END` (hoy stub vacío) |
+| `parseAsignacion()` | Lógica para `DISPOSITIVO.ATRIBUTO = VALOR` (hoy stub vacío) |
+
+> Mientras falte el lexeo de operadores/literales, el **parseo normal no es funcional** (los `parseBloque*` son stubs). Para verificar el lexer usar el modo `--tokens`.
 
 ---
 
-## Bugs pendientes
+## Decisiones de diseño
 
-### Bug 1 — Faltan 2 includes
+### Dispositivos = identificadores dinámicos (no palabras fijas)
 
-`isspace()` requiere `<ctype.h>`. `strcmp()` requiere `<string.h>`. Sin ellos: error de compilación.
+Los dispositivos **no** son palabras reservadas fijas. Se reconocen por **prefijo + sufijo**:
 
-```c
-// Agregar al inicio:
-#include <ctype.h>
-#include <string.h>
-```
+| Prefijo | Token | Ejemplos válidos |
+|---------|-------|------------------|
+| `FOCO_` | `TK_FOCO_ID` | `FOCO_sala`, `FOCO_1`, `FOCO_cocina` |
+| `AIRE_` | `TK_AIRE_ID` | `AIRE_comedor`, `AIRE_1` |
+| `PERSIANA_` | `TK_PERSIANA_ID` | `PERSIANA_living` |
+| `CERRADURA_` | `TK_CERRADURA_ID` | `CERRADURA_entrada` |
+| `RELOJ_` | `TK_RELOJ_ID` | `RELOJ_principal` |
+| `ALTAVOZ_` | `TK_ALTAVOZ_ID` | `ALTAVOZ_cocina` |
+| `ALARMA_` | `TK_ALARMA_ID` | `ALARMA_casa` |
 
----
+- El **sufijo** acepta caracteres alfanuméricos y `_`, y debe tener al menos un carácter (`FOCO_` solo, sin sufijo, **no** es un dispositivo válido).
+- Por ser dinámicos, los dispositivos **no van en `keywords[]`**; se reconocen con `reconocerDispositivo()` por prefijo.
+- Permite varios dispositivos del mismo tipo en un mismo ambiente (`FOCO_sala`, `FOCO_cocina`).
 
-### Bug 2 — Faltan prototipos de funciones
+### Sensores y atributos = palabras fijas
 
-C requiere declarar las funciones antes de usarlas. Varias se llaman antes de estar definidas. Solución: agregar un bloque de prototipos antes de las implementaciones:
+A diferencia de los dispositivos, los **sensores** (`SENSOR_TEMP`, `SENSOR_HUMEDAD`...) y los **atributos** (`ESTADO`, `BRILLO`...) son palabras reservadas fijas y **sí** están en `keywords[]`. Aunque `SENSOR_TEMP` contenga `_`, es una keyword fija, no un identificador dinámico.
 
-```c
-void  errorSintactico(const char *mensaje);
-void  parseInstruccion(void);
-bool  iniciaInstruccion(TokenType t);
-void  parseBloqueWhen(void);
-void  parseBloqueEvery(void);
-void  parseBloqueCondicional(void);
-void  parseAsignacion(void);
-int   finDeArchivo(void);
-```
+### Orden de reconocimiento de una palabra
 
----
+Al leer una palabra, `obtenerSiguienteToken()` clasifica en este orden:
 
-### Bug 3 — `"EVERY"` falta en `keywords[]`
-
-`TK_EVERY` existe en el enum pero `"EVERY"` no está en la tabla. El lexer nunca produciría ese token.
-
-```c
-{"EVERY", TK_EVERY},   // agregar en keywords[]
-```
-
----
-
-### Bug 4 — Dispositivos faltan en `keywords[]`
-
-Los 7 dispositivos existen en el enum pero sin entrada en la tabla de keywords:
-
-```c
-{"FOCO_ID",      TK_FOCO_ID},
-{"AIRE_ID",      TK_AIRE_ID},
-{"PERSIANA_ID",  TK_PERSIANA_ID},
-{"CERRADURA_ID", TK_CERRADURA_ID},
-{"RELOJ_ID",     TK_RELOJ_ID},
-{"ALTAVOZ_ID",   TK_ALTAVOZ_ID},
-{"ALARMA_ID",    TK_ALARMA_ID},
-```
-
-> **Decisión pendiente del grupo:** ¿Los dispositivos son palabras reservadas fijas (`FOCO_ID`) o identificadores dinámicos (`FOCO_sala`, `FOCO_2`)? Si son dinámicos, el lexer debe reconocerlos por prefijo, no por tabla.
-
----
-
-### Bug 5 — `TK_RELOJ_ID` sin `case` en los switches
-
-Está en el enum pero `parseInstruccion()` e `iniciaInstruccion()` no lo manejan.
-
----
-
-### Bug 6 — `ValorToken` no soporta texto
-
-Los tokens `TK_TEXTO`, `TK_EMAIL`, `TK_FECHA`, `TK_HORA` necesitan guardar strings. El union actual solo tiene `double` e `int`:
-
-```c
-typedef union {
-    double numero;
-    int    booleano;
-    char   texto[64];   // ← falta esto
-} ValorToken;
-```
+1. ¿Es keyword fija? (`buscarKeyword`) → ese tipo.
+2. ¿Coincide con prefijo de dispositivo? (`reconocerDispositivo`) → token de dispositivo.
+3. Si no → `TK_ERROR`.
 
 ---
 
@@ -402,48 +363,48 @@ END
 EOF
 ```
 
-### 3. Correr
+### 3. Verificar el lexer con `--tokens`
+
+El parseo normal **todavía no es funcional** (los `parseBloque*` son stubs). Para inspeccionar lo que reconoce el lexer, usar el modo debug `--tokens`, que lexea el archivo e imprime cada token:
 
 ```bash
-./lexer programa.dsl
+./lexer programa.dsl --tokens
+```
+
+Ejemplo de salida (formato `[línea:columna] TIPO 'lexema'`):
+
+```
+[1:0] TK_EVERY             'EVERY'
+[1:6] TK_FOCO_ID           'FOCO_sala'
+[1:16] TK_AIRE_ID          'AIRE_1'
+[2:0] TK_WHEN              'WHEN'
+[2:5] TK_SENSOR_TEMP       'SENSOR_TEMP'
+[2:17] TK_ATRIB_ESTADO     'ESTADO'
+[3:0] TK_ERROR             'FOCO_'      (sin sufijo → no es dispositivo)
+[4:0] TK_EOF               ''
 ```
 
 ### 4. Qué esperar HOY (estado actual)
 
-El lexer todavía es un stub (`obtenerSiguienteToken()` no reconoce tokens). Por eso, los casos que ya se pueden testear son los de **manejo de argumentos y archivos**, no el análisis real:
+El lexer reconoce **palabras** (keywords fijas y dispositivos dinámicos), pero todavía **no** reconoce operadores ni literales (caen en `TK_ERROR`). Casos testeables:
 
 | Caso | Comando | Salida esperada | Código de salida |
 |------|---------|-----------------|------------------|
-| Sin argumentos | `./lexer` | `Uso: ./lexer archivo.dsl` | `1` |
-| Archivo inexistente | `./lexer no_existe.dsl` | `No se pudo abrir el archivo` | `1` |
-| Archivo válido | `./lexer programa.dsl` | `Error sintáctico [línea 1, col 0]: Se esperaba una instruccion` | `1` |
-
-> El último error es **esperado**: el parser recibe un token vacío porque el lexer aún no produce tokens reales. Cuando se implemente `obtenerSiguienteToken()`, ese caso deberá pasar sin error.
+| Sin argumentos | `./lexer` | `Uso: ./lexer archivo.dsl [--tokens]` | `1` |
+| Archivo inexistente | `./lexer no_existe.dsl --tokens` | `No se pudo abrir el archivo` | `1` |
+| Lexeo de palabras | `./lexer programa.dsl --tokens` | Lista de tokens (ver arriba) | `0` |
 
 Para ver el código de salida después de correr:
 
 ```bash
-./lexer programa.dsl; echo "Exit: $?"
+./lexer programa.dsl --tokens; echo "Exit: $?"
 ```
-
-`Exit: 0` = todo bien. Cualquier otro número = error.
-
-### 5. Cómo sabremos que el lexer funciona (objetivo)
-
-Una vez implementado `obtenerSiguienteToken()`, el flujo de testeo será:
-
-1. Escribir un `.dsl` con sintaxis **válida** → debe salir con código `0` y sin errores.
-2. Escribir un `.dsl` con sintaxis **inválida** (ej: `WHEN DO END` sin condición) → debe imprimir un error sintáctico con línea/columna correcta.
-3. (Opcional, recomendado) Agregar una opción de "modo debug" que imprima cada token reconocido, para verificar visualmente que el lexer separa bien las piezas.
 
 ---
 
 ## Próximos pasos (en orden)
 
-1. Agregar `#include <ctype.h>` y `#include <string.h>`
-2. Agregar prototipos de funciones faltantes
-3. Implementar `errorSintactico()` — mínimo: imprimir línea/columna y salir
-4. Agregar stubs vacíos para `parseBloqueWhen/Every/Condicional/Asignacion()` — desbloquea compilación
-5. Completar `keywords[]` con `EVERY` y dispositivos
-6. Implementar la lógica real de `obtenerSiguienteToken()` — el lexer de verdad
-7. Implementar `parseBloqueWhen()` y el resto de funciones de parse
+1. Lexeo de operadores (`==`, `!=`, `>=`, `<=`, `>`, `<`, `=`)
+2. Lexeo de literales y números (`23.5C`, `80%`, `"texto"`, fechas, horas, emails)
+3. Implementar `parseBloqueWhen()` y el resto de funciones de parse
+4. Habilitar el parseo normal (hoy solo funciona el modo `--tokens`)
