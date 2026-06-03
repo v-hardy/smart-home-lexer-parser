@@ -103,6 +103,7 @@ Keyword keywords[] = {
     {"WHEN", TK_WHEN},
     {"DO", TK_DO},
     {"END", TK_END},
+    {"EVERY", TK_EVERY},
     {"IF", TK_IF},
     {"THEN", TK_THEN},
     {"ELSE", TK_ELSE},
@@ -143,7 +144,25 @@ Keyword keywords[] = {
 
 // <======================================= Identificadores de dispositivos =======================================>
 
+/*
+   Los dispositivos son identificadores DINAMICOS (decision de diseño, issue #2):
+   se reconocen por PREFIJO + sufijo. Ej: FOCO_sala, AIRE_comedor, FOCO_1.
+   El sufijo acepta caracteres alfanumericos y '_'. Por eso NO van en keywords[].
+*/
+typedef struct {
+    const char *prefijo;
+    TokenType   tipo;
+} PrefijoDispositivo;
 
+PrefijoDispositivo dispositivos[] = {
+    {"FOCO_",      TK_FOCO_ID},
+    {"AIRE_",      TK_AIRE_ID},
+    {"PERSIANA_",  TK_PERSIANA_ID},
+    {"CERRADURA_", TK_CERRADURA_ID},
+    {"RELOJ_",     TK_RELOJ_ID},
+    {"ALTAVOZ_",   TK_ALTAVOZ_ID},
+    {"ALARMA_",    TK_ALARMA_ID},
+};
 
 
 // <======================================= Literales y Unidades (Tokens Compuestos) =======================================>
@@ -167,7 +186,9 @@ typedef struct {
 
 // <======================================= Prototipos =======================================>
 
-int   finDeArchivo(void);
+int        finDeArchivo(void);
+TokenType  buscarKeyword(const char *lexema);
+TokenType  reconocerDispositivo(const char *lexema);
 void  errorSintactico(const char *mensaje);
 void  parseInstruccion(void);
 bool  iniciaInstruccion(TokenType t);
@@ -277,14 +298,40 @@ Token obtenerSiguienteToken(void)
     tk.linea = lineaActual;
     tk.columna = columnaActual;
 
+    int c = obtenerCaracterActual();
+
+    /* Palabras: keywords (WHEN, SENSOR_TEMP, ESTADO...) e identificadores
+       dinamicos de dispositivo (FOCO_sala, AIRE_1...). Empiezan con letra o '_'. */
+    if (isalpha(c) || c == '_')
+    {
+        int i = 0;
+        while (!finDeArchivo() &&
+               (isalnum(obtenerCaracterActual()) || obtenerCaracterActual() == '_'))
+        {
+            if (i < 63)
+                tk.lexema[i++] = (char)obtenerCaracterActual();
+            avanzarCaracter();
+        }
+        tk.lexema[i] = '\0';
+
+        // Primero palabra reservada fija; si no, prefijo de dispositivo dinamico
+        TokenType t = buscarKeyword(tk.lexema);
+        if (t == TK_ERROR)
+            t = reconocerDispositivo(tk.lexema);
+
+        tk.tipo = t;
+        return tk;
+    }
+
     /*
-       agregar llamado a funciones de reconocimiento de:
-       - palabras reservadas
-       - identificadores
-       - operadores
-       - literales
-       - etc.
+       TODO (issues posteriores): operadores (==, >=, =...), literales
+       (23.5C, 80%, "texto", fechas, horas), numeros.
+       Fallback: consumir un caracter para no entrar en bucle infinito.
     */
+    tk.lexema[0] = (char)c;
+    tk.lexema[1] = '\0';
+    tk.tipo = TK_ERROR;
+    avanzarCaracter();
 
     return tk;
 }
@@ -324,6 +371,26 @@ TokenType buscarKeyword(const char *lexema)
     }
 
     return TK_ERROR; // o TK_IDENTIFICADOR
+}
+
+/* Reconocer dispositivo dinamico por prefijo (FOCO_, AIRE_, ...) */
+TokenType reconocerDispositivo(const char *lexema)
+{
+    size_t n = sizeof(dispositivos) / sizeof(dispositivos[0]);
+
+    for (size_t i = 0; i < n; i++)
+    {
+        size_t len = strlen(dispositivos[i].prefijo);
+
+        // Coincide el prefijo Y hay al menos un caracter de sufijo
+        if (strncmp(lexema, dispositivos[i].prefijo, len) == 0 &&
+            strlen(lexema) > len)
+        {
+            return dispositivos[i].tipo;
+        }
+    }
+
+    return TK_ERROR;
 }
 
 // Instrucciones ::= Instruccion
@@ -419,12 +486,94 @@ void parseAsignacion(void)        { /* TODO issue #9 */ }
 // º operadores (==, !=, >=, <=, =),
 // º literales (23.5C, 80%, "texto", fechas, horas, emails, colores, modos).
 
+/* Nombre legible de un TokenType (para modo debug --tokens) */
+const char *nombreToken(TokenType t)
+{
+    switch (t)
+    {
+        case TK_ERROR:            return "TK_ERROR";
+        case TK_WHEN:             return "TK_WHEN";
+        case TK_DO:               return "TK_DO";
+        case TK_END:              return "TK_END";
+        case TK_EVERY:            return "TK_EVERY";
+        case TK_IF:               return "TK_IF";
+        case TK_THEN:             return "TK_THEN";
+        case TK_ELSE:             return "TK_ELSE";
+        case TK_PAR_IZQ:          return "TK_PAR_IZQ";
+        case TK_PAR_DER:          return "TK_PAR_DER";
+        case TK_AND:              return "TK_AND";
+        case TK_OR:               return "TK_OR";
+        case TK_NOT:              return "TK_NOT";
+        case TK_IGUAL:            return "TK_IGUAL";
+        case TK_DIFERENTE:        return "TK_DIFERENTE";
+        case TK_MAYOR:            return "TK_MAYOR";
+        case TK_MAYORIGUAL:       return "TK_MAYORIGUAL";
+        case TK_MENOR:            return "TK_MENOR";
+        case TK_MENORIGUAL:       return "TK_MENORIGUAL";
+        case TK_ASIGNACION:       return "TK_ASIGNACION";
+        case TK_DELIMITADOR:      return "TK_DELIMITADOR";
+        case TK_SENSOR_TEMP:      return "TK_SENSOR_TEMP";
+        case TK_SENSOR_HUMEDAD:   return "TK_SENSOR_HUMEDAD";
+        case TK_SENSOR_LUZ:       return "TK_SENSOR_LUZ";
+        case TK_SENSOR_MOVIMIENTO:return "TK_SENSOR_MOVIMIENTO";
+        case TK_SENSOR_HUMO:      return "TK_SENSOR_HUMO";
+        case TK_FOCO_ID:          return "TK_FOCO_ID";
+        case TK_AIRE_ID:          return "TK_AIRE_ID";
+        case TK_PERSIANA_ID:      return "TK_PERSIANA_ID";
+        case TK_CERRADURA_ID:     return "TK_CERRADURA_ID";
+        case TK_RELOJ_ID:         return "TK_RELOJ_ID";
+        case TK_ALTAVOZ_ID:       return "TK_ALTAVOZ_ID";
+        case TK_ALARMA_ID:        return "TK_ALARMA_ID";
+        case TK_ATRIB_ESTADO:     return "TK_ATRIB_ESTADO";
+        case TK_ATRIB_BRILLO:     return "TK_ATRIB_BRILLO";
+        case TK_ATRIB_COLOR:      return "TK_ATRIB_COLOR";
+        case TK_ATRIB_TEMP_O:     return "TK_ATRIB_TEMP_O";
+        case TK_ATRIB_TEMP_A:     return "TK_ATRIB_TEMP_A";
+        case TK_ATRIB_MODO:       return "TK_ATRIB_MODO";
+        case TK_ATRIB_POSICION:   return "TK_ATRIB_POSICION";
+        case TK_ATRIB_HORA:       return "TK_ATRIB_HORA";
+        case TK_ATRIB_FECHA:      return "TK_ATRIB_FECHA";
+        case TK_ATRIB_MUTE:       return "TK_ATRIB_MUTE";
+        case TK_ATRIB_VOLUMEN:    return "TK_ATRIB_VOLUMEN";
+        case TK_ATRIB_EMAIL_NOTIF:return "TK_ATRIB_EMAIL_NOTIF";
+        case TK_ATRIB_MENSAJE:    return "TK_ATRIB_MENSAJE";
+        case TK_ATRIB_ACTIVADA:   return "TK_ATRIB_ACTIVADA";
+        case TK_BOOL_SENSOR:      return "TK_BOOL_SENSOR";
+        case TK_BOOL_ACTUADOR:    return "TK_BOOL_ACTUADOR";
+        case TK_TEMP:             return "TK_TEMP";
+        case TK_PORCENTAJE:       return "TK_PORCENTAJE";
+        case TK_TIEMPO:           return "TK_TIEMPO";
+        case TK_LUX:              return "TK_LUX";
+        case TK_HORA:             return "TK_HORA";
+        case TK_FECHA:            return "TK_FECHA";
+        case TK_TEXTO:            return "TK_TEXTO";
+        case TK_EMAIL:            return "TK_EMAIL";
+        case TK_MODO:             return "TK_MODO";
+        case TK_COLOR:            return "TK_COLOR";
+        case TK_EOF:              return "TK_EOF";
+        default:                  return "TK_DESCONOCIDO";
+    }
+}
+
+/* Modo debug: lexea el archivo e imprime cada token (no parsea) */
+void volcarTokens(void)
+{
+    Token tk;
+    do
+    {
+        tk = obtenerSiguienteToken();
+        printf("[%d:%d] %-20s '%s'\n",
+               tk.linea, tk.columna, nombreToken(tk.tipo), tk.lexema);
+    }
+    while (tk.tipo != TK_EOF);
+}
+
 int main(int argc, char *argv[])
 {
-    if (argc != 2)
+    if (argc < 2)
     {
         fprintf(stderr,
-                "Uso: %s archivo.dsl\n",
+                "Uso: %s archivo.dsl [--tokens]\n",
                 argv[0]);
         return EXIT_FAILURE;
     }
@@ -434,6 +583,14 @@ int main(int argc, char *argv[])
         fprintf(stderr,
                 "No se pudo abrir el archivo\n");
         return EXIT_FAILURE;
+    }
+
+    // Modo debug: volcar tokens del lexer sin parsear
+    if (argc >= 3 && strcmp(argv[2], "--tokens") == 0)
+    {
+        volcarTokens();
+        cerrarFuente();
+        return EXIT_SUCCESS;
     }
 
     siguienteToken();
