@@ -99,7 +99,7 @@ Es una lista numerada de todos los "tipos de pieza" que puede producir el lexer.
 | **Operadores lógicos** | `AND`, `OR`, `NOT` | Combinar condiciones |
 | **Operadores comparación** | `>`, `<`, `==`, `!=`, `>=`, `<=` | Comparar valores |
 | **Asignación** | `=` | Asignar valor a dispositivo |
-| **Delimitador** | `;` o similar | Separar instrucciones |
+| **Delimitador** | `.` | Separar instrucciones y `DISPOSITIVO.ATRIBUTO` |
 | **Sensores** | `SENSOR_TEMP`, `SENSOR_HUMEDAD`, etc. | Fuentes de datos |
 | **Dispositivos** | `FOCO_ID`, `AIRE_ID`, etc. | Cosas que se controlan |
 | **Atributos** | `ESTADO`, `BRILLO`, `COLOR`, etc. | Propiedades de dispositivos |
@@ -198,7 +198,7 @@ cerrarFuente()                 // cierra el archivo al terminar
 |---------|---------|
 | `buscarKeyword(texto)` | Busca `texto` en `keywords[]`, retorna su `TokenType` o `TK_ERROR` |
 | `crearTokenEOF()` | Construye el token de fin de archivo |
-| `obtenerSiguienteToken()` | Reconoce **palabras**: keywords fijas y dispositivos dinámicos. Operadores, literales y números aún pendientes |
+| `obtenerSiguienteToken()` | Reconoce **palabras** (keywords fijas y dispositivos dinámicos), **operadores** (`>`, `<`, `=`, `==`, `!=`, `>=`, `<=`), paréntesis y delimitador `.`. Literales y números aún pendientes |
 | `reconocerDispositivo(texto)` | Reconoce dispositivos dinámicos por prefijo (`FOCO_`, `AIRE_`...), retorna su `TokenType` o `TK_ERROR` |
 | `siguienteToken()` | Llama a `obtenerSiguienteToken()` y guarda resultado en `lookahead` |
 
@@ -274,6 +274,7 @@ SENSOR_MOVIMIENTO == TRUE
 | Detección de fin de archivo | `finDeArchivo()` |
 | Búsqueda en tabla de keywords | `buscarKeyword()` |
 | Lexeo de palabras (keywords + dispositivos) | `obtenerSiguienteToken()` |
+| Lexeo de operadores, paréntesis y delimitador `.` | `obtenerSiguienteToken()` |
 | Token EOF | `crearTokenEOF()` |
 | Reporte de error con posición | `errorSintactico()` |
 | Modo debug que vuelca tokens | `--tokens`, `volcarTokens()`, `nombreToken()` |
@@ -284,8 +285,7 @@ SENSOR_MOVIMIENTO == TRUE
 
 | Qué falta | Por qué importa |
 |-----------|----------------|
-| **Lexeo de operadores** (`==`, `!=`, `>=`, `<=`, `>`, `<`, `=`) | El lexer aún no los reconoce; hoy caen en `TK_ERROR` |
-| **Lexeo de literales y números** (`23.5C`, `80%`, `"texto"`, fechas, horas, emails) | Sin esto no se pueden expresar valores concretos |
+| **Lexeo de literales y números** (`30°C`, `80%`, `"texto"`, fechas, horas, emails) | Sin esto no se pueden expresar valores concretos; hoy los dígitos caen en `TK_ERROR` |
 | `parseBloqueWhen()` | Lógica para `WHEN...DO...END` (hoy stub vacío) |
 | `parseBloqueEvery()` | Lógica para `EVERY...DO...END` (hoy stub vacío) |
 | `parseBloqueCondicional()` | Lógica para `IF...THEN...ELSE...END` (hoy stub vacío) |
@@ -404,7 +404,7 @@ Para ver el código de salida después de correr:
 
 ## Próximos pasos (en orden)
 
-1. Lexeo de operadores (`==`, `!=`, `>=`, `<=`, `>`, `<`, `=`)
-2. Lexeo de literales y números (`23.5C`, `80%`, `"texto"`, fechas, horas, emails)
+1. Lexeo de literales numéricos con unidad (`30°C`, `80%`, `h`, `min`, `lux`)
+2. Lexeo de literales de texto (`"mensaje"`, emails, fechas, horas)
 3. Implementar `parseBloqueWhen()` y el resto de funciones de parse
 4. Habilitar el parseo normal (hoy solo funciona el modo `--tokens`)
