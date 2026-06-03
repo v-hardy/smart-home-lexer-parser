@@ -275,6 +275,7 @@ SENSOR_MOVIMIENTO == TRUE
 | Búsqueda en tabla de keywords | `buscarKeyword()` |
 | Lexeo de palabras (keywords + dispositivos) | `obtenerSiguienteToken()` |
 | Lexeo de operadores, paréntesis y delimitador `.` | `obtenerSiguienteToken()` |
+| Lexeo de literales numéricos con unidad (`30°C`, `80%`, `2h`, `30min`, `500lux`) | `leerNumeroConUnidad()` |
 | Token EOF | `crearTokenEOF()` |
 | Reporte de error con posición | `errorSintactico()` |
 | Modo debug que vuelca tokens | `--tokens`, `volcarTokens()`, `nombreToken()` |
@@ -285,7 +286,7 @@ SENSOR_MOVIMIENTO == TRUE
 
 | Qué falta | Por qué importa |
 |-----------|----------------|
-| **Lexeo de literales y números** (`30°C`, `80%`, `"texto"`, fechas, horas, emails) | Sin esto no se pueden expresar valores concretos; hoy los dígitos caen en `TK_ERROR` |
+| **Lexeo de literales de texto** (`"mensaje"`, emails, fechas, horas) | Sin esto no se pueden expresar esos valores; hoy `"` y demás caen en `TK_ERROR` |
 | `parseBloqueWhen()` | Lógica para `WHEN...DO...END` (hoy stub vacío) |
 | `parseBloqueEvery()` | Lógica para `EVERY...DO...END` (hoy stub vacío) |
 | `parseBloqueCondicional()` | Lógica para `IF...THEN...ELSE...END` (hoy stub vacío) |
@@ -326,6 +327,12 @@ Al leer una palabra, `obtenerSiguienteToken()` clasifica en este orden:
 1. ¿Es keyword fija? (`buscarKeyword`) → ese tipo.
 2. ¿Coincide con prefijo de dispositivo? (`reconocerDispositivo`) → token de dispositivo.
 3. Si no → `TK_ERROR`.
+
+### Números = solo enteros, con unidad obligatoria
+
+Los valores numéricos son **enteros** (`30°C`, `80%`, `2h`, `30min`, `500lux`). No se admite parte decimal: el punto `.` es delimitador, no separador decimal. Si en el futuro hicieran falta decimales, se usaría coma (`,`), no punto.
+
+Un número **sin unidad** válida (`°C`, `%`, `h`, `min`, `lux`) es `TK_ERROR`. Por eso `22.5°C` se lexea como `22` (`TK_ERROR`) + `.` (`TK_DELIMITADOR`) + `5°C` (`TK_TEMP`), no como un decimal.
 
 ---
 
@@ -415,7 +422,6 @@ Imprime cuántos tests pasaron/fallaron y retorna exit code `0` si todo pasa, `1
 
 ## Próximos pasos (en orden)
 
-1. Lexeo de literales numéricos con unidad (`30°C`, `80%`, `h`, `min`, `lux`)
-2. Lexeo de literales de texto (`"mensaje"`, emails, fechas, horas)
-3. Implementar `parseBloqueWhen()` y el resto de funciones de parse
-4. Habilitar el parseo normal (hoy solo funciona el modo `--tokens`)
+1. Lexeo de literales de texto (`"mensaje"`, emails, fechas, horas)
+2. Implementar `parseBloqueWhen()` y el resto de funciones de parse
+3. Habilitar el parseo normal (hoy solo funciona el modo `--tokens`)
