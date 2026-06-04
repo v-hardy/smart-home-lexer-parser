@@ -36,6 +36,29 @@ static void assertToken(int linea, Token tok, TokenType tipoEsp, const char *lex
 
 #define ASSERT_TOKEN(tipo, lexema) assertToken(__LINE__, obtenerSiguienteToken(), tipo, lexema)
 
+static void assertTokenTexto(int linea, Token tok, TokenType tipoEsp,
+                              const char *lexemaEsp, const char *textoEsp)
+{
+    if (tok.tipo == tipoEsp &&
+        strcmp(tok.lexema, lexemaEsp) == 0 &&
+        strcmp(tok.valor.texto, textoEsp) == 0)
+    {
+        testsPasados++;
+    }
+    else
+    {
+        fprintf(stderr,
+                "[FAIL] linea %d — esperaba tipo %d \"%s\" texto=\"%s\", "
+                "obtuvo tipo %d \"%s\" texto=\"%s\"\n",
+                linea, tipoEsp, lexemaEsp, textoEsp,
+                tok.tipo, tok.lexema, tok.valor.texto);
+        testsFallados++;
+    }
+}
+
+#define ASSERT_TOKEN_TEXTO(tipo, lexema, texto) \
+    assertTokenTexto(__LINE__, obtenerSiguienteToken(), tipo, lexema, texto)
+
 
 /* Todas las palabras reservadas */
 void test_fase1_keywords(void)
