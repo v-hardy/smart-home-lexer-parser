@@ -99,7 +99,7 @@ Es una lista numerada de todos los "tipos de pieza" que puede producir el lexer.
 | **Operadores lógicos** | `AND`, `OR`, `NOT` | Combinar condiciones |
 | **Operadores comparación** | `>`, `<`, `==`, `!=`, `>=`, `<=` | Comparar valores |
 | **Asignación** | `=` | Asignar valor a dispositivo |
-| **Delimitador** | `;` o similar | Separar instrucciones |
+| **Delimitador** | `.` | Separar instrucciones y `DISPOSITIVO.ATRIBUTO` |
 | **Sensores** | `SENSOR_TEMP`, `SENSOR_HUMEDAD`, etc. | Fuentes de datos |
 | **Dispositivos** | `FOCO_ID`, `AIRE_ID`, etc. | Cosas que se controlan |
 | **Atributos** | `ESTADO`, `BRILLO`, `COLOR`, etc. | Propiedades de dispositivos |
@@ -198,7 +198,7 @@ cerrarFuente()                 // cierra el archivo al terminar
 |---------|---------|
 | `buscarKeyword(texto)` | Busca `texto` en `keywords[]`, retorna su `TokenType` o `TK_ERROR` |
 | `crearTokenEOF()` | Construye el token de fin de archivo |
-| `obtenerSiguienteToken()` | Reconoce **palabras**: keywords fijas y dispositivos dinámicos. Operadores, literales y números aún pendientes |
+| `obtenerSiguienteToken()` | Reconoce **palabras** (keywords fijas y dispositivos dinámicos), **operadores** (`>`, `<`, `=`, `==`, `!=`, `>=`, `<=`), paréntesis y delimitador `.`. Literales y números aún pendientes |
 | `reconocerDispositivo(texto)` | Reconoce dispositivos dinámicos por prefijo (`FOCO_`, `AIRE_`...), retorna su `TokenType` o `TK_ERROR` |
 | `siguienteToken()` | Llama a `obtenerSiguienteToken()` y guarda resultado en `lookahead` |
 
@@ -274,6 +274,8 @@ SENSOR_MOVIMIENTO == TRUE
 | Detección de fin de archivo | `finDeArchivo()` |
 | Búsqueda en tabla de keywords | `buscarKeyword()` |
 | Lexeo de palabras (keywords + dispositivos) | `obtenerSiguienteToken()` |
+| Lexeo de operadores, paréntesis y delimitador `.` | `obtenerSiguienteToken()` |
+| Lexeo de literales numéricos con unidad (`30°C`, `80%`, `2h`, `30min`, `500lux`) | `leerNumeroConUnidad()` |
 | Token EOF | `crearTokenEOF()` |
 | Reporte de error con posición | `errorSintactico()` |
 | Modo debug que vuelca tokens | `--tokens`, `volcarTokens()`, `nombreToken()` |
@@ -284,8 +286,7 @@ SENSOR_MOVIMIENTO == TRUE
 
 | Qué falta | Por qué importa |
 |-----------|----------------|
-| **Lexeo de operadores** (`==`, `!=`, `>=`, `<=`, `>`, `<`, `=`) | El lexer aún no los reconoce; hoy caen en `TK_ERROR` |
-| **Lexeo de literales y números** (`23.5C`, `80%`, `"texto"`, fechas, horas, emails) | Sin esto no se pueden expresar valores concretos |
+| **Lexeo de literales de texto** (`"mensaje"`, emails, fechas, horas) | Sin esto no se pueden expresar esos valores; hoy `"` y demás caen en `TK_ERROR` |
 | `parseBloqueWhen()` | Lógica para `WHEN...DO...END` (hoy stub vacío) |
 | `parseBloqueEvery()` | Lógica para `EVERY...DO...END` (hoy stub vacío) |
 | `parseBloqueCondicional()` | Lógica para `IF...THEN...ELSE...END` (hoy stub vacío) |
@@ -326,6 +327,12 @@ Al leer una palabra, `obtenerSiguienteToken()` clasifica en este orden:
 1. ¿Es keyword fija? (`buscarKeyword`) → ese tipo.
 2. ¿Coincide con prefijo de dispositivo? (`reconocerDispositivo`) → token de dispositivo.
 3. Si no → `TK_ERROR`.
+
+### Números = solo enteros, con unidad obligatoria
+
+Los valores numéricos son **enteros** (`30°C`, `80%`, `2h`, `30min`, `500lux`). No se admite parte decimal: el punto `.` es delimitador, no separador decimal. Si en el futuro hicieran falta decimales, se usaría coma (`,`), no punto.
+
+Un número **sin unidad** válida (`°C`, `%`, `h`, `min`, `lux`) es `TK_ERROR`. Por eso `22.5°C` se lexea como `22` (`TK_ERROR`) + `.` (`TK_DELIMITADOR`) + `5°C` (`TK_TEMP`), no como un decimal.
 
 ---
 
@@ -386,13 +393,13 @@ Ejemplo de salida (formato `[línea:columna] TIPO 'lexema'`):
 
 ### 4. Qué esperar HOY (estado actual)
 
-El lexer reconoce **palabras** (keywords fijas y dispositivos dinámicos), pero todavía **no** reconoce operadores ni literales (caen en `TK_ERROR`). Casos testeables:
+El lexer reconoce **palabras** (keywords fijas y dispositivos dinámicos) y **operadores** (comparación, asignación, paréntesis, delimitador `.`). Todavía **no** reconoce literales ni números (caen en `TK_ERROR`). Casos testeables:
 
 | Caso | Comando | Salida esperada | Código de salida |
 |------|---------|-----------------|------------------|
 | Sin argumentos | `./lexer` | `Uso: ./lexer archivo.dsl [--tokens]` | `1` |
 | Archivo inexistente | `./lexer no_existe.dsl --tokens` | `No se pudo abrir el archivo` | `1` |
-| Lexeo de palabras | `./lexer programa.dsl --tokens` | Lista de tokens (ver arriba) | `0` |
+| Lexeo de palabras y operadores | `./lexer programa.dsl --tokens` | Lista de tokens (ver arriba) | `0` |
 
 Para ver el código de salida después de correr:
 
@@ -400,11 +407,21 @@ Para ver el código de salida después de correr:
 ./lexer programa.dsl --tokens; echo "Exit: $?"
 ```
 
+### 5. Tests unitarios (`test_lexer.c`)
+
+Tests automáticos del lexer, sin tocar disco (leen desde un string en memoria vía `lexerInitDesdeString()`, disponible solo en modo `TESTING`):
+
+```bash
+clang -Wall -std=c11 -DTESTING test_lexer.c -o test_lexer
+./test_lexer
+```
+
+Imprime cuántos tests pasaron/fallaron y retorna exit code `0` si todo pasa, `1` si algo falla. La Fase 1 cubre keywords, operadores, booleanos, sensores y EOF.
+
 ---
 
 ## Próximos pasos (en orden)
 
-1. Lexeo de operadores (`==`, `!=`, `>=`, `<=`, `>`, `<`, `=`)
-2. Lexeo de literales y números (`23.5C`, `80%`, `"texto"`, fechas, horas, emails)
-3. Implementar `parseBloqueWhen()` y el resto de funciones de parse
-4. Habilitar el parseo normal (hoy solo funciona el modo `--tokens`)
+1. Lexeo de literales de texto (`"mensaje"`, emails, fechas, horas)
+2. Implementar `parseBloqueWhen()` y el resto de funciones de parse
+3. Habilitar el parseo normal (hoy solo funciona el modo `--tokens`)

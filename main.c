@@ -209,6 +209,48 @@ static int lineaActual = 1;
 static int columnaActual = 0;
 
 
+// <======================================= Lectura de caracteres =======================================>
+
+/*
+   Toda la lectura de caracteres pasa por leerChar(). En modo normal lee del
+   archivo; en modo TESTING lee de un buffer en memoria, para poder testear
+   el lexer desde un string sin tocar disco (ver lexerInitDesdeString).
+*/
+#ifdef TESTING
+
+static char _testBuffer[4096];
+static int  _testPos;
+
+static int leerChar(void)
+{
+    if (_testBuffer[_testPos] == '\0')
+        return EOF;
+
+    return (unsigned char)_testBuffer[_testPos++];
+}
+
+/* Reinicia el lexer para leer desde un string (solo modo test) */
+void lexerInitDesdeString(const char *texto)
+{
+    strncpy(_testBuffer, texto, sizeof(_testBuffer) - 1);
+    _testBuffer[sizeof(_testBuffer) - 1] = '\0';
+
+    _testPos       = 0;
+    lineaActual    = 1;
+    columnaActual  = 0;
+    caracterActual = leerChar();
+}
+
+#else
+
+static int leerChar(void)
+{
+    return fgetc(fuente);
+}
+
+#endif
+
+
 // <======================================= Funciones =======================================>
 
 //* Abrir archivo */
@@ -219,7 +261,7 @@ int abrirFuente(const char *nombreArchivo)
     if (fuente == NULL)
         return 0;
 
-    caracterActual = fgetc(fuente);
+    caracterActual = leerChar();
 
     return 1;
 }
@@ -247,7 +289,7 @@ void avanzarCaracter(void)
         columnaActual++;
     }
 
-    caracterActual = fgetc(fuente);
+    caracterActual = leerChar();
 }
 
 /* Obtiene caracter actual */
@@ -285,6 +327,104 @@ Token crearTokenEOF(void)
     return tk;
 }
 
+/*
+   Literal numerico con unidad: 30°C, 80%, 2h, 30min, 500lux.
+   Solo enteros (decision de diseño, issue #5): el TP maneja valores enteros y
+   el '.' es delimitador, no separador decimal. Un numero sin unidad valida es
+   TK_ERROR. Recibe el token con linea/columna ya cargadas.
+*/
+Token leerNumeroConUnidad(Token tk)
+{
+    int i = 0;
+
+    // Parte entera
+    while (!finDeArchivo() && isdigit(obtenerCaracterActual()))
+    {
+        if (i < 63)
+            tk.lexema[i++] = (char)obtenerCaracterActual();
+        avanzarCaracter();
+    }
+    tk.lexema[i] = '\0';
+    tk.valor.numero = atof(tk.lexema);
+
+    int u = obtenerCaracterActual();
+
+    // Porcentaje: 80%
+    if (u == '%')
+    {
+        if (i < 63)
+            tk.lexema[i++] = '%';
+        tk.lexema[i] = '\0';
+        avanzarCaracter();
+        tk.tipo = TK_PORCENTAJE;
+        return tk;
+    }
+
+    // Temperatura: 30°C  ('°' es 0xC2 0xB0 en UTF-8, debe seguir 'C')
+    if (u == 0xC2)
+    {
+        if (i < 62)
+            tk.lexema[i++] = (char)0xC2;
+        avanzarCaracter();
+
+        if (obtenerCaracterActual() == 0xB0)
+        {
+            if (i < 62)
+                tk.lexema[i++] = (char)0xB0;
+            avanzarCaracter();
+
+            if (obtenerCaracterActual() == 'C')
+            {
+                if (i < 63)
+                    tk.lexema[i++] = 'C';
+                tk.lexema[i] = '\0';
+                avanzarCaracter();
+                tk.tipo = TK_TEMP;
+                return tk;
+            }
+        }
+
+        tk.lexema[i] = '\0';
+        tk.tipo = TK_ERROR;
+        return tk;
+    }
+
+    // Unidades alfabeticas: h y min (tiempo), lux
+    if (isalpha(u))
+    {
+        char unidad[8];
+        int  j = 0;
+
+        while (!finDeArchivo() && isalpha(obtenerCaracterActual()))
+        {
+            int ch = obtenerCaracterActual();
+
+            if (j < (int)sizeof(unidad) - 1)
+                unidad[j++] = (char)ch;
+            if (i < 63)
+                tk.lexema[i++] = (char)ch;
+
+            avanzarCaracter();
+        }
+        unidad[j] = '\0';
+        tk.lexema[i] = '\0';
+
+        if (strcmp(unidad, "h") == 0 || strcmp(unidad, "min") == 0)
+            tk.tipo = TK_TIEMPO;
+        else if (strcmp(unidad, "lux") == 0)
+            tk.tipo = TK_LUX;
+        else
+            tk.tipo = TK_ERROR;
+
+        return tk;
+    }
+
+    // Numero sin unidad -> invalido
+    tk.lexema[i] = '\0';
+    tk.tipo = TK_ERROR;
+    return tk;
+}
+
 /* Obetener siguiente token */
 Token obtenerSiguienteToken(void)
 {
@@ -297,6 +437,7 @@ Token obtenerSiguienteToken(void)
 
     tk.linea = lineaActual;
     tk.columna = columnaActual;
+    tk.valor.numero = 0;   // fase 1: sin valor asociado todavia
 
     int c = obtenerCaracterActual();
 
@@ -323,11 +464,95 @@ Token obtenerSiguienteToken(void)
         return tk;
     }
 
-    /*
-       TODO (issues posteriores): operadores (==, >=, =...), literales
-       (23.5C, 80%, "texto", fechas, horas), numeros.
-       Fallback: consumir un caracter para no entrar en bucle infinito.
-    */
+    /* Literales numericos con unidad: 30°C, 80%, 2h, 30min, 500lux. */
+    if (isdigit(c))
+        return leerNumeroConUnidad(tk);
+
+    /* Operadores, parentesis y delimitador.
+       La posicion (linea/columna) ya quedo guardada arriba, antes de avanzar. */
+    switch (c)
+    {
+        case '>':
+            avanzarCaracter();
+            if (obtenerCaracterActual() == '=')
+            {
+                avanzarCaracter();
+                tk.tipo = TK_MAYORIGUAL;
+                strcpy(tk.lexema, ">=");
+            }
+            else
+            {
+                tk.tipo = TK_MAYOR;
+                strcpy(tk.lexema, ">");
+            }
+            return tk;
+
+        case '<':
+            avanzarCaracter();
+            if (obtenerCaracterActual() == '=')
+            {
+                avanzarCaracter();
+                tk.tipo = TK_MENORIGUAL;
+                strcpy(tk.lexema, "<=");
+            }
+            else
+            {
+                tk.tipo = TK_MENOR;
+                strcpy(tk.lexema, "<");
+            }
+            return tk;
+
+        case '=':
+            avanzarCaracter();
+            if (obtenerCaracterActual() == '=')
+            {
+                avanzarCaracter();
+                tk.tipo = TK_IGUAL;
+                strcpy(tk.lexema, "==");
+            }
+            else
+            {
+                tk.tipo = TK_ASIGNACION;
+                strcpy(tk.lexema, "=");
+            }
+            return tk;
+
+        case '!':
+            avanzarCaracter();
+            if (obtenerCaracterActual() == '=')
+            {
+                avanzarCaracter();
+                tk.tipo = TK_DIFERENTE;
+                strcpy(tk.lexema, "!=");
+            }
+            else
+            {
+                tk.tipo = TK_ERROR;
+                strcpy(tk.lexema, "!");
+            }
+            return tk;
+
+        case '(':
+            avanzarCaracter();
+            tk.tipo = TK_PAR_IZQ;
+            strcpy(tk.lexema, "(");
+            return tk;
+
+        case ')':
+            avanzarCaracter();
+            tk.tipo = TK_PAR_DER;
+            strcpy(tk.lexema, ")");
+            return tk;
+
+        case '.':   // delimitador del lenguaje (decision de diseño, issue #3)
+            avanzarCaracter();
+            tk.tipo = TK_DELIMITADOR;
+            strcpy(tk.lexema, ".");
+            return tk;
+    }
+
+    /* Caracter no reconocido. Los literales numericos y de texto llegan en
+       issues posteriores (#5, #7). Se consume para no trabar el lexer. */
     tk.lexema[0] = (char)c;
     tk.lexema[1] = '\0';
     tk.tipo = TK_ERROR;
@@ -568,6 +793,10 @@ void volcarTokens(void)
     while (tk.tipo != TK_EOF);
 }
 
+/* En modo TESTING, test_lexer.c hace #include "main.c" y aporta su propio
+   main(). Por eso aca se excluye este main() para evitar el conflicto. */
+#ifndef TESTING
+
 int main(int argc, char *argv[])
 {
     if (argc < 2)
@@ -601,3 +830,5 @@ int main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
+
+#endif  // TESTING
