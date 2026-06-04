@@ -386,19 +386,30 @@ Ejemplo de salida (formato `[línea:columna] TIPO 'lexema'`):
 
 ### 4. Qué esperar HOY (estado actual)
 
-El lexer reconoce **palabras** (keywords fijas y dispositivos dinámicos), pero todavía **no** reconoce operadores ni literales (caen en `TK_ERROR`). Casos testeables:
+El lexer reconoce **palabras** (keywords fijas y dispositivos dinámicos) y **operadores** (comparación, asignación, paréntesis, delimitador `.`). Todavía **no** reconoce literales ni números (caen en `TK_ERROR`). Casos testeables:
 
 | Caso | Comando | Salida esperada | Código de salida |
 |------|---------|-----------------|------------------|
 | Sin argumentos | `./lexer` | `Uso: ./lexer archivo.dsl [--tokens]` | `1` |
 | Archivo inexistente | `./lexer no_existe.dsl --tokens` | `No se pudo abrir el archivo` | `1` |
-| Lexeo de palabras | `./lexer programa.dsl --tokens` | Lista de tokens (ver arriba) | `0` |
+| Lexeo de palabras y operadores | `./lexer programa.dsl --tokens` | Lista de tokens (ver arriba) | `0` |
 
 Para ver el código de salida después de correr:
 
 ```bash
 ./lexer programa.dsl --tokens; echo "Exit: $?"
 ```
+
+### 5. Tests unitarios (`test_lexer.c`)
+
+Tests automáticos del lexer, sin tocar disco (leen desde un string en memoria vía `lexerInitDesdeString()`, disponible solo en modo `TESTING`):
+
+```bash
+clang -Wall -std=c11 -DTESTING test_lexer.c -o test_lexer
+./test_lexer
+```
+
+Imprime cuántos tests pasaron/fallaron y retorna exit code `0` si todo pasa, `1` si algo falla. La Fase 1 cubre keywords, operadores, booleanos, sensores y EOF.
 
 ---
 

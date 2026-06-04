@@ -209,6 +209,48 @@ static int lineaActual = 1;
 static int columnaActual = 0;
 
 
+// <======================================= Lectura de caracteres =======================================>
+
+/*
+   Toda la lectura de caracteres pasa por leerChar(). En modo normal lee del
+   archivo; en modo TESTING lee de un buffer en memoria, para poder testear
+   el lexer desde un string sin tocar disco (ver lexerInitDesdeString).
+*/
+#ifdef TESTING
+
+static char _testBuffer[4096];
+static int  _testPos;
+
+static int leerChar(void)
+{
+    if (_testBuffer[_testPos] == '\0')
+        return EOF;
+
+    return (unsigned char)_testBuffer[_testPos++];
+}
+
+/* Reinicia el lexer para leer desde un string (solo modo test) */
+void lexerInitDesdeString(const char *texto)
+{
+    strncpy(_testBuffer, texto, sizeof(_testBuffer) - 1);
+    _testBuffer[sizeof(_testBuffer) - 1] = '\0';
+
+    _testPos       = 0;
+    lineaActual    = 1;
+    columnaActual  = 0;
+    caracterActual = leerChar();
+}
+
+#else
+
+static int leerChar(void)
+{
+    return fgetc(fuente);
+}
+
+#endif
+
+
 // <======================================= Funciones =======================================>
 
 //* Abrir archivo */
@@ -219,7 +261,7 @@ int abrirFuente(const char *nombreArchivo)
     if (fuente == NULL)
         return 0;
 
-    caracterActual = fgetc(fuente);
+    caracterActual = leerChar();
 
     return 1;
 }
@@ -247,7 +289,7 @@ void avanzarCaracter(void)
         columnaActual++;
     }
 
-    caracterActual = fgetc(fuente);
+    caracterActual = leerChar();
 }
 
 /* Obtiene caracter actual */
@@ -649,6 +691,10 @@ void volcarTokens(void)
     while (tk.tipo != TK_EOF);
 }
 
+/* En modo TESTING, test_lexer.c hace #include "main.c" y aporta su propio
+   main(). Por eso aca se excluye este main() para evitar el conflicto. */
+#ifndef TESTING
+
 int main(int argc, char *argv[])
 {
     if (argc < 2)
@@ -682,3 +728,5 @@ int main(int argc, char *argv[])
 
     return EXIT_SUCCESS;
 }
+
+#endif  // TESTING
