@@ -132,6 +132,53 @@ void test_fase1_eof(void)
     ASSERT_TOKEN(TK_EOF, "");
 }
 
+/* Fase 2: Literales numericos con unidad — temperatura */
+void test_fase2_temp(void)
+{
+    lexerInitDesdeString("30\xC2\xB0""C 0\xC2\xB0""C");
+    ASSERT_TOKEN(TK_TEMP, "30\xC2\xB0""C");
+    ASSERT_TOKEN(TK_TEMP, "0\xC2\xB0""C");
+    ASSERT_TOKEN(TK_EOF,  "");
+
+    // Sin decimales: '.' es delimitador, no separador decimal
+    lexerInitDesdeString("22.5\xC2\xB0""C");
+    ASSERT_TOKEN(TK_ERROR, "22");
+}
+
+/* Fase 2: Literales numericos con unidad — porcentaje */
+void test_fase2_porcentaje(void)
+{
+    lexerInitDesdeString("80% 0% 100%");
+    ASSERT_TOKEN(TK_PORCENTAJE, "80%");
+    ASSERT_TOKEN(TK_PORCENTAJE, "0%");
+    ASSERT_TOKEN(TK_PORCENTAJE, "100%");
+    ASSERT_TOKEN(TK_EOF, "");
+}
+
+/* Fase 2: Literales numericos con unidad — tiempo */
+void test_fase2_tiempo(void)
+{
+    lexerInitDesdeString("2h 30min");
+    ASSERT_TOKEN(TK_TIEMPO, "2h");
+    ASSERT_TOKEN(TK_TIEMPO, "30min");
+    ASSERT_TOKEN(TK_EOF, "");
+}
+
+/* Fase 2: Literales numericos con unidad — lux */
+void test_fase2_lux(void)
+{
+    lexerInitDesdeString("500lux");
+    ASSERT_TOKEN(TK_LUX, "500lux");
+    ASSERT_TOKEN(TK_EOF, "");
+}
+
+/* Fase 2: Numero sin unidad es TK_ERROR */
+void test_fase2_sin_unidad(void)
+{
+    lexerInitDesdeString("42");
+    ASSERT_TOKEN(TK_ERROR, "42");
+}
+
 int main(void)
 {
     test_fase1_keywords();
@@ -139,6 +186,12 @@ int main(void)
     test_fase1_booleanos();
     test_fase1_sensores();
     test_fase1_eof();
+
+    test_fase2_temp();
+    test_fase2_porcentaje();
+    test_fase2_tiempo();
+    test_fase2_lux();
+    test_fase2_sin_unidad();
 
     printf("\nResultados: %d pasaron, %d fallaron.\n", testsPasados, testsFallados);
 
