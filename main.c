@@ -327,6 +327,104 @@ Token crearTokenEOF(void)
     return tk;
 }
 
+/*
+   Literal numerico con unidad: 30°C, 80%, 2h, 30min, 500lux.
+   Solo enteros (decision de diseño, issue #5): el TP maneja valores enteros y
+   el '.' es delimitador, no separador decimal. Un numero sin unidad valida es
+   TK_ERROR. Recibe el token con linea/columna ya cargadas.
+*/
+Token leerNumeroConUnidad(Token tk)
+{
+    int i = 0;
+
+    // Parte entera
+    while (!finDeArchivo() && isdigit(obtenerCaracterActual()))
+    {
+        if (i < 63)
+            tk.lexema[i++] = (char)obtenerCaracterActual();
+        avanzarCaracter();
+    }
+    tk.lexema[i] = '\0';
+    tk.valor.numero = atof(tk.lexema);
+
+    int u = obtenerCaracterActual();
+
+    // Porcentaje: 80%
+    if (u == '%')
+    {
+        if (i < 63)
+            tk.lexema[i++] = '%';
+        tk.lexema[i] = '\0';
+        avanzarCaracter();
+        tk.tipo = TK_PORCENTAJE;
+        return tk;
+    }
+
+    // Temperatura: 30°C  ('°' es 0xC2 0xB0 en UTF-8, debe seguir 'C')
+    if (u == 0xC2)
+    {
+        if (i < 62)
+            tk.lexema[i++] = (char)0xC2;
+        avanzarCaracter();
+
+        if (obtenerCaracterActual() == 0xB0)
+        {
+            if (i < 62)
+                tk.lexema[i++] = (char)0xB0;
+            avanzarCaracter();
+
+            if (obtenerCaracterActual() == 'C')
+            {
+                if (i < 63)
+                    tk.lexema[i++] = 'C';
+                tk.lexema[i] = '\0';
+                avanzarCaracter();
+                tk.tipo = TK_TEMP;
+                return tk;
+            }
+        }
+
+        tk.lexema[i] = '\0';
+        tk.tipo = TK_ERROR;
+        return tk;
+    }
+
+    // Unidades alfabeticas: h y min (tiempo), lux
+    if (isalpha(u))
+    {
+        char unidad[8];
+        int  j = 0;
+
+        while (!finDeArchivo() && isalpha(obtenerCaracterActual()))
+        {
+            int ch = obtenerCaracterActual();
+
+            if (j < (int)sizeof(unidad) - 1)
+                unidad[j++] = (char)ch;
+            if (i < 63)
+                tk.lexema[i++] = (char)ch;
+
+            avanzarCaracter();
+        }
+        unidad[j] = '\0';
+        tk.lexema[i] = '\0';
+
+        if (strcmp(unidad, "h") == 0 || strcmp(unidad, "min") == 0)
+            tk.tipo = TK_TIEMPO;
+        else if (strcmp(unidad, "lux") == 0)
+            tk.tipo = TK_LUX;
+        else
+            tk.tipo = TK_ERROR;
+
+        return tk;
+    }
+
+    // Numero sin unidad -> invalido
+    tk.lexema[i] = '\0';
+    tk.tipo = TK_ERROR;
+    return tk;
+}
+
 /* Obetener siguiente token */
 Token obtenerSiguienteToken(void)
 {
@@ -365,6 +463,10 @@ Token obtenerSiguienteToken(void)
         tk.tipo = t;
         return tk;
     }
+
+    /* Literales numericos con unidad: 30°C, 80%, 2h, 30min, 500lux. */
+    if (isdigit(c))
+        return leerNumeroConUnidad(tk);
 
     /* Operadores, parentesis y delimitador.
        La posicion (linea/columna) ya quedo guardada arriba, antes de avanzar. */
