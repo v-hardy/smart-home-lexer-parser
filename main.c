@@ -297,6 +297,7 @@ Token obtenerSiguienteToken(void)
 
     tk.linea = lineaActual;
     tk.columna = columnaActual;
+    tk.valor.numero = 0;   // fase 1: sin valor asociado todavia
 
     int c = obtenerCaracterActual();
 
@@ -323,11 +324,91 @@ Token obtenerSiguienteToken(void)
         return tk;
     }
 
-    /*
-       TODO (issues posteriores): operadores (==, >=, =...), literales
-       (23.5C, 80%, "texto", fechas, horas), numeros.
-       Fallback: consumir un caracter para no entrar en bucle infinito.
-    */
+    /* Operadores, parentesis y delimitador.
+       La posicion (linea/columna) ya quedo guardada arriba, antes de avanzar. */
+    switch (c)
+    {
+        case '>':
+            avanzarCaracter();
+            if (obtenerCaracterActual() == '=')
+            {
+                avanzarCaracter();
+                tk.tipo = TK_MAYORIGUAL;
+                strcpy(tk.lexema, ">=");
+            }
+            else
+            {
+                tk.tipo = TK_MAYOR;
+                strcpy(tk.lexema, ">");
+            }
+            return tk;
+
+        case '<':
+            avanzarCaracter();
+            if (obtenerCaracterActual() == '=')
+            {
+                avanzarCaracter();
+                tk.tipo = TK_MENORIGUAL;
+                strcpy(tk.lexema, "<=");
+            }
+            else
+            {
+                tk.tipo = TK_MENOR;
+                strcpy(tk.lexema, "<");
+            }
+            return tk;
+
+        case '=':
+            avanzarCaracter();
+            if (obtenerCaracterActual() == '=')
+            {
+                avanzarCaracter();
+                tk.tipo = TK_IGUAL;
+                strcpy(tk.lexema, "==");
+            }
+            else
+            {
+                tk.tipo = TK_ASIGNACION;
+                strcpy(tk.lexema, "=");
+            }
+            return tk;
+
+        case '!':
+            avanzarCaracter();
+            if (obtenerCaracterActual() == '=')
+            {
+                avanzarCaracter();
+                tk.tipo = TK_DIFERENTE;
+                strcpy(tk.lexema, "!=");
+            }
+            else
+            {
+                tk.tipo = TK_ERROR;
+                strcpy(tk.lexema, "!");
+            }
+            return tk;
+
+        case '(':
+            avanzarCaracter();
+            tk.tipo = TK_PAR_IZQ;
+            strcpy(tk.lexema, "(");
+            return tk;
+
+        case ')':
+            avanzarCaracter();
+            tk.tipo = TK_PAR_DER;
+            strcpy(tk.lexema, ")");
+            return tk;
+
+        case '.':   // delimitador del lenguaje (decision de diseño, issue #3)
+            avanzarCaracter();
+            tk.tipo = TK_DELIMITADOR;
+            strcpy(tk.lexema, ".");
+            return tk;
+    }
+
+    /* Caracter no reconocido. Los literales numericos y de texto llegan en
+       issues posteriores (#5, #7). Se consume para no trabar el lexer. */
     tk.lexema[0] = (char)c;
     tk.lexema[1] = '\0';
     tk.tipo = TK_ERROR;
