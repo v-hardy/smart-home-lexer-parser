@@ -1,453 +1,159 @@
-# Guía del Proyecto: Lexer/Parser Smart Home
+# Smart Home Lexer
 
-## ¿Qué es este proyecto?
+Analizador léxico para un lenguaje de domótica. Toma un script de texto con reglas de automatización y produce una secuencia de tokens.
 
-Es un **analizador de lenguaje** para un lenguaje de dominio específico (DSL) de domótica (smart home). La idea es que el usuario pueda escribir reglas como esta:
+## Ejemplo de input
 
 ```
-WHEN SENSOR_TEMP > 30°C DO
-    AIRE_1.ESTADO = ON
+WHEN sensor_luz < 250lux DO
+    foco_entrada.estado = ON
+    foco_entrada.brillo = 80%
+END
+
+EVERY 30m DO
+    IF reloj_principal.hora > 22:00 THEN
+        persiana_sala.posicion = 0%
+        altavoz_comedor.mensaje = "Son las 22hs"
+        altavoz_comedor.email_notif = notif@casa.com.ar
+    END
 END
 ```
 
-Y el programa entienda esa instrucción, la analice y determine si es válida.
+## Tokens reconocidos
 
----
+### Palabras reservadas
 
-## Conceptos previos (para entender sin saber C)
+| Token | Lexema |
+|-------|--------|
+| `TK_WHEN` | `WHEN` |
+| `TK_DO` | `DO` |
+| `TK_END` | `END` |
+| `TK_IF` | `IF` |
+| `TK_THEN` | `THEN` |
+| `TK_ELSE` | `ELSE` |
+| `TK_EVERY` | `EVERY` |
+| `TK_AND` | `AND` |
+| `TK_OR` | `OR` |
+| `TK_NOT` | `NOT` |
 
-### ¿Qué es un Lexer?
+> No se distingue entre mayúsculas y minúsculas: `WHEN`, `when` y `When` son equivalentes.
 
-Un **lexer** (también llamado tokenizador) toma texto crudo y lo convierte en "piezas" con nombre. Es el primer paso antes de entender el significado.
+### Sensores
 
-**Analogía:** Igual que cuando leés una oración:
-> "El perro come hueso"
+| Token | Lexema |
+|-------|--------|
+| `TK_SENSOR_TEMP` | `sensor_temp` |
+| `TK_SENSOR_HUMEDAD` | `sensor_humedad` |
+| `TK_SENSOR_LUZ` | `sensor_luz` |
+| `TK_SENSOR_MOVIMIENTO` | `sensor_movimiento` |
+| `TK_SENSOR_HUMO` | `sensor_humo` |
 
-Tu cerebro primero identifica: `[artículo] [sustantivo] [verbo] [sustantivo]`. Eso es lo que hace el lexer — etiqueta cada pieza.
+### Dispositivos
 
-**Ejemplo con el código:**
-```
-WHEN SENSOR_TEMP > 30°C DO
-```
-El lexer produce:
-```
-[TK_WHEN]  [TK_SENSOR_TEMP]  [TK_MAYOR]  [TK_TEMP: 30°C]  [TK_DO]
-```
+Se reconocen por prefijo seguido de un sufijo alfanumérico (ej: `foco_sala`, `aire_1`).
 
-Cada pieza se llama **Token**.
+| Token | Prefijo |
+|-------|---------|
+| `TK_FOCO_ID` | `foco_` |
+| `TK_AIRE_ID` | `aire_` |
+| `TK_PERSIANA_ID` | `persiana_` |
+| `TK_CERRADURA_ID` | `cerradura_` |
+| `TK_RELOJ_ID` | `reloj_` |
+| `TK_ALTAVOZ_ID` | `altavoz_` |
+| `TK_ALARMA_ID` | `alarma_` |
 
----
+### Atributos
 
-### ¿Qué es un Parser?
+`estado`, `brillo`, `color`, `temp_obj`, `temp_act`, `modo`, `posicion`, `hora`, `fecha`, `mute`, `volumen`, `email_notif`, `mensaje`, `activada`
 
-El **parser** toma la lista de tokens del lexer y verifica que están en el orden correcto según las reglas del lenguaje (la gramática). También construye el significado.
+### Literales
 
-**Analogía:** Si el lexer identifica las palabras, el parser verifica que la oración tenga sentido gramaticalmente.
+| Token | Formato | Ejemplos |
+|-------|---------|---------|
+| `TK_TEMP` | entero + `°C` | `25°C`, `0°C` |
+| `TK_PORCENTAJE` | entero + `%` | `80%`, `100%` |
+| `TK_TIEMPO` | entero + `s`/`m`/`min`/`h` | `10s`, `30m`, `2h` |
+| `TK_LUX` | entero + `lux` | `500lux` |
+| `TK_HORA` | `HH:MM` (24h) | `08:30`, `23:59` |
+| `TK_FECHA` | `DD/MM/AAAA` | `21/04/2026` |
+| `TK_TEXTO` | entre comillas dobles | `"Hola mundo"` |
+| `TK_EMAIL` | `usuario@dominio.ext` | `notif@casa.com.ar` |
+| `TK_BOOL_SENSOR` | `TRUE` / `FALSE` | para sensores |
+| `TK_BOOL_ACTUADOR` | `ON` / `OFF` | para actuadores |
+| `TK_MODO` | `FRIO` / `CALOR` / `VENT` | modo del aire |
+| `TK_COLOR` | `blanco` / `rojo` / `azul` | color del foco |
 
----
+### Operadores y delimitadores
 
-### Tipos de datos en C relevantes para este código
+| Token | Símbolo |
+|-------|---------|
+| `TK_IGUAL` | `==` |
+| `TK_DIFERENTE` | `!=` |
+| `TK_MAYOR` | `>` |
+| `TK_MAYORIGUAL` | `>=` |
+| `TK_MENOR` | `<` |
+| `TK_MENORIGUAL` | `<=` |
+| `TK_ASIGNACION` | `=` |
+| `TK_DELIMITADOR` | `.` |
+| `TK_PAR_IZQ` | `(` |
+| `TK_PAR_DER` | `)` |
 
-| Concepto C | Qué es | Equivalente aproximado |
-|-----------|--------|----------------------|
-| `enum`    | Lista de constantes numéricas con nombre | Como un tipo con valores fijos |
-| `struct`  | Agrupación de variables relacionadas | Como un objeto/registro |
-| `union`   | Variables que comparten la misma memoria | Una caja que guarda UNA cosa a la vez |
-| `typedef` | Le da un nombre nuevo a un tipo | Como un alias |
-| `static`  | Variable/función visible solo en su archivo | Como "privado" en otros lenguajes |
-| `FILE*`   | Puntero a un archivo abierto | Como un cursor de lectura sobre un archivo |
+### Comentarios
 
----
+Las líneas que empiezan con `//` son ignoradas por el lexer.
 
-## Estructura del código (`main.c`)
+## Compilar y testear
 
-El archivo tiene estos bloques en orden:
+### Requisitos
 
-```
-main.c
-├── 1. Includes
-├── 2. TokenType (enum)          → Lista de todos los tipos de tokens posibles
-├── 3. Keyword (struct/tabla)    → Tabla de palabras reservadas del lenguaje
-├── 4. Token + ValorToken        → Cómo se representa un token individual
-├── 5. Variables globales        → lookahead (parser) + estado del lexer (FILE*)
-├── 6. Funciones del lexer       → leer archivo, avanzar, omitir espacios, etc.
-└── 7. Funciones del parser      → parsePrograma, match, parseInstruccion, etc.
-```
-
----
-
-## Bloque 1: `TokenType` — Todos los tokens posibles
-
-```c
-typedef enum {
-    TK_ERROR,
-    TK_WHEN,
-    TK_DO,
-    ...
-    TK_EOF
-} TokenType;
-```
-
-Es una lista numerada de todos los "tipos de pieza" que puede producir el lexer. C los convierte internamente en números (0, 1, 2...) pero el código los usa por nombre para que sea legible.
-
-### Categorías de tokens definidas:
-
-| Categoría | Ejemplos | Para qué sirve |
-|-----------|---------|----------------|
-| **Palabras reservadas** | `WHEN`, `DO`, `END`, `IF`, `THEN`, `ELSE`, `EVERY` | Estructura del lenguaje |
-| **Paréntesis** | `(`, `)` | Agrupar condiciones |
-| **Operadores lógicos** | `AND`, `OR`, `NOT` | Combinar condiciones |
-| **Operadores comparación** | `>`, `<`, `==`, `!=`, `>=`, `<=` | Comparar valores |
-| **Asignación** | `=` | Asignar valor a dispositivo |
-| **Delimitador** | `.` | Separar instrucciones y `DISPOSITIVO.ATRIBUTO` |
-| **Sensores** | `SENSOR_TEMP`, `SENSOR_HUMEDAD`, etc. | Fuentes de datos |
-| **Dispositivos** | `FOCO_ID`, `AIRE_ID`, etc. | Cosas que se controlan |
-| **Atributos** | `ESTADO`, `BRILLO`, `COLOR`, etc. | Propiedades de dispositivos |
-| **Literales** | `TRUE/FALSE`, `ON/OFF`, temperaturas, porcentajes | Valores concretos |
-| **EOF** | Fin del archivo | Señal de que no hay más texto |
-
----
-
-## Bloque 2: `Keyword` — Tabla de palabras reservadas
-
-```c
-typedef struct {
-    const char *lexema;  // el texto tal cual ("WHEN", "IF", etc.)
-    TokenType tipo;      // el tipo de token que representa
-} Keyword;
-
-Keyword keywords[] = {
-    {"WHEN", TK_WHEN},
-    {"DO",   TK_DO},
-    ...
-};
-```
-
-Es una tabla de búsqueda. El lexer lee una palabra del texto, la busca en esta tabla con `buscarKeyword()` y si la encuentra, sabe qué tipo de token es.
-
-**Ejemplo:** Lee `"WHEN"` → busca en la tabla → encuentra `{"WHEN", TK_WHEN}` → produce token de tipo `TK_WHEN`.
-
----
-
-## Bloque 3: `Token` — La estructura de un token individual
-
-```c
-typedef union {
-    double numero;   // para valores como 30.5 (temperatura, porcentaje)
-    int booleano;    // para TRUE/FALSE
-} ValorToken;
-
-typedef struct {
-    TokenType tipo;    // qué tipo es (TK_WHEN, TK_TEMP, etc.)
-    char lexema[64];   // el texto original ("WHEN", "30.5", etc.)
-    ValorToken valor;  // el valor numérico/booleano si aplica
-    int linea;         // en qué línea del código fuente está
-    int columna;       // en qué columna está
-} Token;
-```
-
-Cada token que produce el lexer tiene estos 5 campos. `linea` y `columna` sirven para dar mensajes de error precisos ("Error en línea 5, columna 12").
-
-**Importante:** `ValorToken` es un `union`, no un `struct`. Eso significa que `numero` y `booleano` comparten la misma memoria — solo uno está activo a la vez. El código que usa el token debe saber cuál usar según el `tipo`.
-
----
-
-## Bloque 4: Variables globales y estado del lexer
-
-```c
-Token lookahead;              // token actual que el parser está mirando
-
-static FILE   *fuente;        // archivo .dsl abierto
-static int     caracterActual;// carácter leído en este momento
-static int     lineaActual;   // línea actual (para errores)
-static int     columnaActual; // columna actual (para errores)
-```
-
-`lookahead` es el token que el parser tiene "a la vista". El parser siempre mira un token adelante para decidir qué regla aplicar — patrón llamado **análisis predictivo LL(1)**.
-
-Las variables `static` del lexer son privadas al archivo. El lexer las actualiza a medida que avanza por el archivo fuente.
-
----
-
-## Bloque 5: Funciones del lexer
-
-### Ciclo de vida del archivo
-
-```c
-abrirFuente("programa.dsl")   // abre el archivo, lee el primer carácter
-    ↓
-avanzarCaracter()              // mueve al siguiente carácter, actualiza línea/columna
-    ↓
-cerrarFuente()                 // cierra el archivo al terminar
-```
-
-### Funciones de lectura
-
-| Función | Qué hace |
+| Sistema | Comando |
 |---------|---------|
-| `abrirFuente(nombre)` | Abre el archivo `.dsl`, lee el primer carácter |
-| `cerrarFuente()` | Cierra el archivo |
-| `avanzarCaracter()` | Lee el siguiente carácter, actualiza `lineaActual`/`columnaActual` |
-| `obtenerCaracterActual()` | Retorna el carácter que se está mirando ahora |
-| `finDeArchivo()` | Retorna `1` si ya se llegó al final |
-| `omitirEspacios()` | Avanza saltando espacios, tabs y saltos de línea |
-
-### Funciones de tokenización
-
-| Función | Qué hace |
-|---------|---------|
-| `buscarKeyword(texto)` | Busca `texto` en `keywords[]`, retorna su `TokenType` o `TK_ERROR` |
-| `crearTokenEOF()` | Construye el token de fin de archivo |
-| `obtenerSiguienteToken()` | Reconoce **palabras** (keywords fijas y dispositivos dinámicos), **operadores** (`>`, `<`, `=`, `==`, `!=`, `>=`, `<=`), paréntesis y delimitador `.`. Literales y números aún pendientes |
-| `reconocerDispositivo(texto)` | Reconoce dispositivos dinámicos por prefijo (`FOCO_`, `AIRE_`...), retorna su `TokenType` o `TK_ERROR` |
-| `siguienteToken()` | Llama a `obtenerSiguienteToken()` y guarda resultado en `lookahead` |
-
----
-
-## Bloque 6: Funciones del parser
-
-### `parsePrograma()`
-Punto de entrada del parser. Procesa instrucciones hasta que no quede ninguna más, luego verifica que el archivo terminó (`TK_EOF`).
-
-### `parseInstruccion()`
-Mira el token actual (`lookahead`) y decide qué tipo de instrucción es:
-- Si empieza con `WHEN` → bloque de evento
-- Si empieza con `EVERY` → bloque de tiempo
-- Si empieza con `IF` → condicional
-- Si empieza con un dispositivo → asignación
-
-### `match(TokenType esperado)`
-Verifica que el token actual sea el que se espera. Si sí, avanza al siguiente token. Si no, reporta error de sintaxis.
-
-**Analogía:** Como un lector que espera encontrar una coma en cierta posición. Si no está, dice "¡Falta la coma!".
-
-### `iniciaInstruccion(TokenType t)`
-Pregunta: "¿este tipo de token puede iniciar una instrucción válida?". Retorna `true` o `false`. Se usa para saber cuándo dejar de parsear instrucciones.
-
----
-
-## El lenguaje que se está construyendo
-
-```
-// Bloque WHEN: "cuando ocurra X, hacer Y"
-WHEN <condicion> DO
-    <instrucciones>
-END
-
-// Bloque EVERY: "cada cierto tiempo, hacer Y"
-EVERY <tiempo> DO
-    <instrucciones>
-END
-
-// Condicional
-IF <condicion> THEN
-    <instrucciones>
-ELSE
-    <instrucciones>
-END
-
-// Asignación de atributo de dispositivo
-FOCO_1.BRILLO = 80%
-AIRE_1.ESTADO = ON
-
-// Condiciones con sensores
-SENSOR_TEMP > 30°C
-SENSOR_HUMEDAD == 60%
-SENSOR_MOVIMIENTO == TRUE
-```
-
----
-
-## Estado actual del proyecto
-
-### ✅ Implementado y correcto
-
-| Qué | Dónde |
-|-----|-------|
-| Todos los tipos de token definidos | `TokenType` enum |
-| Tabla de keywords completa (reservadas, sensores, atributos, `EVERY`) | `keywords[]` |
-| Reconocimiento de dispositivos dinámicos por prefijo | `dispositivos[]`, `reconocerDispositivo()` |
-| Estructura del token (incluye `texto[64]` para strings) | `Token`, `ValorToken` |
-| Apertura/cierre de archivo | `abrirFuente()`, `cerrarFuente()` |
-| Avance de carácter con tracking de posición | `avanzarCaracter()` |
-| Skip de espacios | `omitirEspacios()` |
-| Detección de fin de archivo | `finDeArchivo()` |
-| Búsqueda en tabla de keywords | `buscarKeyword()` |
-| Lexeo de palabras (keywords + dispositivos) | `obtenerSiguienteToken()` |
-| Lexeo de operadores, paréntesis y delimitador `.` | `obtenerSiguienteToken()` |
-| Lexeo de literales numéricos con unidad (`30°C`, `80%`, `2h`, `30min`, `500lux`) | `leerNumeroConUnidad()` |
-| Token EOF | `crearTokenEOF()` |
-| Reporte de error con posición | `errorSintactico()` |
-| Modo debug que vuelca tokens | `--tokens`, `volcarTokens()`, `nombreToken()` |
-| Estructura del parser | `parsePrograma()`, `parseInstruccion()`, `match()`, `iniciaInstruccion()` |
-| Punto de entrada con argumento de archivo | `main()` |
-
-### ❌ Pendiente (no existe o es stub)
-
-| Qué falta | Por qué importa |
-|-----------|----------------|
-| **Lexeo de literales de texto** (`"mensaje"`, emails, fechas, horas) | Sin esto no se pueden expresar esos valores; hoy `"` y demás caen en `TK_ERROR` |
-| `parseBloqueWhen()` | Lógica para `WHEN...DO...END` (hoy stub vacío) |
-| `parseBloqueEvery()` | Lógica para `EVERY...DO...END` (hoy stub vacío) |
-| `parseBloqueCondicional()` | Lógica para `IF...THEN...ELSE...END` (hoy stub vacío) |
-| `parseAsignacion()` | Lógica para `DISPOSITIVO.ATRIBUTO = VALOR` (hoy stub vacío) |
-
-> Mientras falte el lexeo de operadores/literales, el **parseo normal no es funcional** (los `parseBloque*` son stubs). Para verificar el lexer usar el modo `--tokens`.
-
----
-
-## Decisiones de diseño
-
-### Dispositivos = identificadores dinámicos (no palabras fijas)
-
-Los dispositivos **no** son palabras reservadas fijas. Se reconocen por **prefijo + sufijo**:
-
-| Prefijo | Token | Ejemplos válidos |
-|---------|-------|------------------|
-| `FOCO_` | `TK_FOCO_ID` | `FOCO_sala`, `FOCO_1`, `FOCO_cocina` |
-| `AIRE_` | `TK_AIRE_ID` | `AIRE_comedor`, `AIRE_1` |
-| `PERSIANA_` | `TK_PERSIANA_ID` | `PERSIANA_living` |
-| `CERRADURA_` | `TK_CERRADURA_ID` | `CERRADURA_entrada` |
-| `RELOJ_` | `TK_RELOJ_ID` | `RELOJ_principal` |
-| `ALTAVOZ_` | `TK_ALTAVOZ_ID` | `ALTAVOZ_cocina` |
-| `ALARMA_` | `TK_ALARMA_ID` | `ALARMA_casa` |
-
-- El **sufijo** acepta caracteres alfanuméricos y `_`, y debe tener al menos un carácter (`FOCO_` solo, sin sufijo, **no** es un dispositivo válido).
-- Por ser dinámicos, los dispositivos **no van en `keywords[]`**; se reconocen con `reconocerDispositivo()` por prefijo.
-- Permite varios dispositivos del mismo tipo en un mismo ambiente (`FOCO_sala`, `FOCO_cocina`).
-
-### Sensores y atributos = palabras fijas
-
-A diferencia de los dispositivos, los **sensores** (`SENSOR_TEMP`, `SENSOR_HUMEDAD`...) y los **atributos** (`ESTADO`, `BRILLO`...) son palabras reservadas fijas y **sí** están en `keywords[]`. Aunque `SENSOR_TEMP` contenga `_`, es una keyword fija, no un identificador dinámico.
-
-### Orden de reconocimiento de una palabra
-
-Al leer una palabra, `obtenerSiguienteToken()` clasifica en este orden:
-
-1. ¿Es keyword fija? (`buscarKeyword`) → ese tipo.
-2. ¿Coincide con prefijo de dispositivo? (`reconocerDispositivo`) → token de dispositivo.
-3. Si no → `TK_ERROR`.
-
-### Números = solo enteros, con unidad obligatoria
-
-Los valores numéricos son **enteros** (`30°C`, `80%`, `2h`, `30min`, `500lux`). No se admite parte decimal: el punto `.` es delimitador, no separador decimal. Si en el futuro hicieran falta decimales, se usaría coma (`,`), no punto.
-
-Un número **sin unidad** válida (`°C`, `%`, `h`, `min`, `lux`) es `TK_ERROR`. Por eso `22.5°C` se lexea como `22` (`TK_ERROR`) + `.` (`TK_DELIMITADOR`) + `5°C` (`TK_TEMP`), no como un decimal.
-
----
-
-## Cómo compilar, correr y testear
-
-### 0. Setup inicial (una vez por máquina)
-
-#### ¿Qué es `make`?
-
-`make` es una herramienta de build estándar en C. Lee el archivo `Makefile` de la raíz y sabe cómo compilar el proyecto sin que tengas que escribir el comando completo cada vez.
-
-**Instalación según sistema:**
-
-| Sistema | Instrucción |
-|---------|-------------|
 | Linux (Ubuntu/Debian) | `sudo apt install build-essential` |
 | Linux (Fedora/RHEL) | `sudo dnf install make gcc` |
 | macOS | `xcode-select --install` |
-| Windows | Usar **WSL** (recomendado) o instalar **MinGW/MSYS2** |
+| Windows | WSL recomendado |
 
-> En Windows la opción más simple es WSL: abrís una terminal Linux dentro de Windows y todo funciona igual que en Linux.
-
-#### Activar el pre-commit hook
-
-Una vez que tenés `make`, activar el hook para que los tests corran automáticamente antes de cada commit:
+### Setup del pre-commit hook (una vez)
 
 ```bash
 git config core.hooksPath .githooks
 ```
 
-Esto le dice a Git que busque los hooks en `.githooks/` (versionado en el repo) en vez de `.git/hooks/` (local, no compartido). A partir de ese momento, si los tests fallan, el commit se cancela.
+Cancela el commit automáticamente si los tests fallan.
 
-### 1. Compilar
-
-Desde la raíz del proyecto (donde está `main.c`):
+### Comandos
 
 ```bash
-make
+make          # compila el lexer → genera ./lexer
+make test     # compila y corre los tests unitarios
+make clean    # elimina los binarios
 ```
 
-Internamente detecta si tenés `gcc` o `clang` y corre el equivalente a:
+### Modo --tokens
+
+Lexea un archivo e imprime cada token con su posición:
 
 ```bash
-gcc -Wall -std=c11 main.c -o lexer
+./lexer programa.smart --tokens
 ```
 
-- `-Wall`: activa todos los warnings (ayuda a cazar errores temprano)
-- `-std=c11`: fija el estándar de C
-- `-o lexer`: nombre del ejecutable generado
-
-**Resultado esperado:** ningún mensaje y se crea el archivo `lexer`. Si aparecen errores/warnings, hay que corregirlos antes de seguir.
-
-### 2. Crear un archivo de prueba
-
-El programa recibe **un** archivo `.dsl` como argumento. Creá uno:
-
-```bash
-cat > programa.dsl <<'EOF'
-WHEN SENSOR_TEMP > 30 DO
-    AIRE_1.ESTADO = ON
-END
-EOF
-```
-
-### 3. Verificar el lexer con `--tokens`
-
-El parseo normal **todavía no es funcional** (los `parseBloque*` son stubs). Para inspeccionar lo que reconoce el lexer, usar el modo debug `--tokens`, que lexea el archivo e imprime cada token:
-
-```bash
-./lexer programa.dsl --tokens
-```
-
-Ejemplo de salida (formato `[línea:columna] TIPO 'lexema'`):
+Salida (formato `[línea:columna] TIPO 'lexema'`):
 
 ```
-[1:0] TK_EVERY             'EVERY'
-[1:6] TK_FOCO_ID           'FOCO_sala'
-[1:16] TK_AIRE_ID          'AIRE_1'
-[2:0] TK_WHEN              'WHEN'
-[2:5] TK_SENSOR_TEMP       'SENSOR_TEMP'
-[2:17] TK_ATRIB_ESTADO     'ESTADO'
-[3:0] TK_ERROR             'FOCO_'      (sin sufijo → no es dispositivo)
-[4:0] TK_EOF               ''
+[1:0]  TK_WHEN         'WHEN'
+[1:5]  TK_SENSOR_LUZ   'sensor_luz'
+[1:16] TK_MENOR        '<'
+[1:18] TK_LUX          '250lux'
+[1:25] TK_DO           'DO'
 ```
 
-### 4. Qué esperar HOY (estado actual)
+El archivo fuente debe tener extensión `.smart`.
 
-El lexer reconoce **palabras** (keywords fijas y dispositivos dinámicos) y **operadores** (comparación, asignación, paréntesis, delimitador `.`). Todavía **no** reconoce literales ni números (caen en `TK_ERROR`). Casos testeables:
-
-| Caso | Comando | Salida esperada | Código de salida |
-|------|---------|-----------------|------------------|
-| Sin argumentos | `./lexer` | `Uso: ./lexer archivo.dsl [--tokens]` | `1` |
-| Archivo inexistente | `./lexer no_existe.dsl --tokens` | `No se pudo abrir el archivo` | `1` |
-| Lexeo de palabras y operadores | `./lexer programa.dsl --tokens` | Lista de tokens (ver arriba) | `0` |
-
-Para ver el código de salida después de correr:
-
-```bash
-./lexer programa.dsl --tokens; echo "Exit: $?"
-```
-
-### 5. Tests unitarios (`test_lexer.c`)
-
-Tests automáticos del lexer, sin tocar disco (leen desde un string en memoria vía `lexerInitDesdeString()`, disponible solo en modo `TESTING`):
+## Tests
 
 ```bash
 make test
+# Resultados: 123 pasaron, 0 fallaron.
 ```
 
-Imprime cuántos tests pasaron/fallaron y retorna exit code `0` si todo pasa, `1` si algo falla. Si configuraste el hook del paso 0, esto corre automáticamente antes de cada commit.
-
----
-
-## Próximos pasos (en orden)
-
-1. Lexeo de literales de texto (`"mensaje"`, emails, fechas, horas)
-2. Implementar `parseBloqueWhen()` y el resto de funciones de parse
-3. Habilitar el parseo normal (hoy solo funciona el modo `--tokens`)
+Los tests no tocan disco — el lexer se alimenta desde strings en memoria vía `lexerInitDesdeString()`.
