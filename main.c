@@ -303,15 +303,20 @@ int obtenerCaracterActual(void)
     return caracterActual;
 }
 
-/* Obtener Siguiente Caracter */
+/* Peek del siguiente caracter sin consumirlo. Usa leerChar + ungetChar
+   para funcionar tanto en modo normal como en TESTING. */
 int obtenerSiguienteCaracter(void)
 {
+#ifdef TESTING
+    if (_testBuffer[_testPos] == '\0')
+        return EOF;
+    return (unsigned char)_testBuffer[_testPos];
+#else
     int c = fgetc(fuente);
-
     if (c != EOF)
         ungetc(c, fuente);
-
     return c;
+#endif
 }
 
 /* Omitir espacios y comentarios */
@@ -373,79 +378,38 @@ Token crearTokenEOF(void)
 Token leerTexto(Token tk)
 {
     int i = 0;
+    int j = 0;
 
-    /* Avanzar comilla inicial */
+    /* Lexema incluye comillas: "Hola mundo". valor.texto es el contenido sin comillas. */
+    tk.lexema[i++] = '"';
     avanzarCaracter();
 
     while (!finDeArchivo() &&
            obtenerCaracterActual() != '"')
     {
-        if (i < MAX_LEXEMA_IDX)
-            tk.lexema[i++] = (char)obtenerCaracterActual();
-
+        int ch = obtenerCaracterActual();
+        if (i < MAX_LEXEMA_IDX)     tk.lexema[i++] = (char)ch;
+        if (j < MAX_LEXEMA_IDX)     tk.valor.texto[j++] = (char)ch;
         avanzarCaracter();
     }
 
     if (obtenerCaracterActual() != '"')
     {
         tk.lexema[i] = '\0';
+        tk.valor.texto[j] = '\0';
         tk.tipo = TK_ERROR;
         return tk;
     }
 
-    /* Avanzar comilla final */
-    avanzarCaracter();
-
+    if (i < MAX_LEXEMA_IDX) tk.lexema[i++] = '"';
     tk.lexema[i] = '\0';
-    strcpy(tk.valor.texto, tk.lexema);
+    tk.valor.texto[j] = '\0';
+    avanzarCaracter();
 
     tk.tipo = TK_TEXTO;
     return tk;
 }
 
-Token leerEmail(Token tk)
-{
-    int i = 0;
-    bool tieneArroba = false;
-
-    while (!finDeArchivo())
-    {
-        int c = obtenerCaracterActual();
-
-        if (isalnum(c) ||
-            c == '@' ||
-            c == '.' ||
-            c == '-' ||
-            c == '_')
-        {
-            if (c == '@')
-                tieneArroba = true;
-
-            if (i < MAX_LEXEMA_IDX)
-                tk.lexema[i++] = (char)c;
-
-            avanzarCaracter();
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    tk.lexema[i] = '\0';
-
-    if (tieneArroba)
-    {
-        strcpy(tk.valor.texto, tk.lexema);
-        tk.tipo = TK_EMAIL;
-    }
-    else
-    {
-        tk.tipo = TK_ERROR;
-    }
-
-    return tk;
-}
 
 /*
    Literal numerico con unidad: 30°C, 80%, 2h, 30min, 500lux.
@@ -500,6 +464,8 @@ Token leerNumeroConUnidad(Token tk)
             if (hh >= 0 && hh <= 23 &&
                 mm >= 0 && mm <= 59)
             {
+                strncpy(tk.valor.texto, tk.lexema, MAX_LEXEMA_IDX);
+                tk.valor.texto[MAX_LEXEMA_IDX] = '\0';
                 tk.tipo = TK_HORA;
                 return tk;
             }
@@ -508,6 +474,53 @@ Token leerNumeroConUnidad(Token tk)
         tk.tipo = TK_ERROR;
         return tk;
     }
+
+    /* Fecha DD/MM/AAAA */
+    if (obtenerCaracterActual() == '/')
+    {
+        if (i < MAX_LEXEMA_IDX) tk.lexema[i++] = '/';
+        avanzarCaracter();
+
+        int digits = 0;
+        while (!finDeArchivo() && isdigit(obtenerCaracterActual()) && digits < 2)
+        {
+            if (i < MAX_LEXEMA_IDX) tk.lexema[i++] = (char)obtenerCaracterActual();
+            avanzarCaracter();
+            digits++;
+        }
+
+        if (digits != 2 || obtenerCaracterActual() != '/')
+        {
+            tk.lexema[i] = '\0';
+            tk.tipo = TK_ERROR;
+            return tk;
+        }
+
+        if (i < MAX_LEXEMA_IDX) tk.lexema[i++] = '/';
+        avanzarCaracter();
+
+        digits = 0;
+        while (!finDeArchivo() && isdigit(obtenerCaracterActual()) && digits < 4)
+        {
+            if (i < MAX_LEXEMA_IDX) tk.lexema[i++] = (char)obtenerCaracterActual();
+            avanzarCaracter();
+            digits++;
+        }
+        tk.lexema[i] = '\0';
+
+        if (digits == 4)
+        {
+            strncpy(tk.valor.texto, tk.lexema, MAX_LEXEMA_IDX);
+            tk.valor.texto[MAX_LEXEMA_IDX] = '\0';
+            tk.tipo = TK_FECHA;
+        }
+        else
+        {
+            tk.tipo = TK_ERROR;
+        }
+        return tk;
+    }
+
     tk.lexema[i] = '\0';
     tk.valor.numero = atof(tk.lexema);
 
