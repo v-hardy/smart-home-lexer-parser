@@ -240,6 +240,110 @@ void test_fase3_comentarios(void)
     ASSERT_TOKEN(TK_EOF,  "");
 }
 
+/* Fase 4: TK_MODO — FRIO, CALOR, VENT */
+void test_fase4_modo(void)
+{
+    lexerInitDesdeString("FRIO CALOR VENT");
+    ASSERT_TOKEN(TK_MODO, "FRIO");
+    ASSERT_TOKEN(TK_MODO, "CALOR");
+    ASSERT_TOKEN(TK_MODO, "VENT");
+    ASSERT_TOKEN(TK_EOF,  "");
+
+    lexerInitDesdeString("frio calor vent");
+    ASSERT_TOKEN(TK_MODO, "frio");
+    ASSERT_TOKEN(TK_MODO, "calor");
+    ASSERT_TOKEN(TK_MODO, "vent");
+    ASSERT_TOKEN(TK_EOF,  "");
+}
+
+/* Fase 4: TK_COLOR — blanco, rojo, azul, blue */
+void test_fase4_color(void)
+{
+    lexerInitDesdeString("blanco rojo azul blue");
+    ASSERT_TOKEN(TK_COLOR, "blanco");
+    ASSERT_TOKEN(TK_COLOR, "rojo");
+    ASSERT_TOKEN(TK_COLOR, "azul");
+    ASSERT_TOKEN(TK_COLOR, "blue");
+    ASSERT_TOKEN(TK_EOF,   "");
+
+    lexerInitDesdeString("BLANCO ROJO AZUL BLUE");
+    ASSERT_TOKEN(TK_COLOR, "BLANCO");
+    ASSERT_TOKEN(TK_COLOR, "ROJO");
+    ASSERT_TOKEN(TK_COLOR, "AZUL");
+    ASSERT_TOKEN(TK_COLOR, "BLUE");
+    ASSERT_TOKEN(TK_EOF,   "");
+}
+
+/* Fase 4: TK_TIEMPO — unidades m (minutos) y s (segundos) */
+void test_fase4_tiempo_unidades(void)
+{
+    lexerInitDesdeString("30m 10s 5h");
+    ASSERT_TOKEN(TK_TIEMPO, "30m");
+    ASSERT_TOKEN(TK_TIEMPO, "10s");
+    ASSERT_TOKEN(TK_TIEMPO, "5h");
+    ASSERT_TOKEN(TK_EOF,    "");
+}
+
+/* Fase 4: case-insensitive — keywords y sensores */
+void test_fase4_case_insensitive_keywords(void)
+{
+    lexerInitDesdeString("when do end if then else every and or not");
+    ASSERT_TOKEN(TK_WHEN,  "when");
+    ASSERT_TOKEN(TK_DO,    "do");
+    ASSERT_TOKEN(TK_END,   "end");
+    ASSERT_TOKEN(TK_IF,    "if");
+    ASSERT_TOKEN(TK_THEN,  "then");
+    ASSERT_TOKEN(TK_ELSE,  "else");
+    ASSERT_TOKEN(TK_EVERY, "every");
+    ASSERT_TOKEN(TK_AND,   "and");
+    ASSERT_TOKEN(TK_OR,    "or");
+    ASSERT_TOKEN(TK_NOT,   "not");
+    ASSERT_TOKEN(TK_EOF,   "");
+}
+
+void test_fase4_case_insensitive_sensores(void)
+{
+    lexerInitDesdeString("sensor_temp sensor_humedad sensor_luz sensor_movimiento sensor_humo");
+    ASSERT_TOKEN(TK_SENSOR_TEMP,       "sensor_temp");
+    ASSERT_TOKEN(TK_SENSOR_HUMEDAD,    "sensor_humedad");
+    ASSERT_TOKEN(TK_SENSOR_LUZ,        "sensor_luz");
+    ASSERT_TOKEN(TK_SENSOR_MOVIMIENTO, "sensor_movimiento");
+    ASSERT_TOKEN(TK_SENSOR_HUMO,       "sensor_humo");
+    ASSERT_TOKEN(TK_EOF,               "");
+}
+
+void test_fase4_case_insensitive_booleanos(void)
+{
+    lexerInitDesdeString("true false on off");
+    ASSERT_TOKEN(TK_BOOL_SENSOR,   "true");
+    ASSERT_TOKEN(TK_BOOL_SENSOR,   "false");
+    ASSERT_TOKEN(TK_BOOL_ACTUADOR, "on");
+    ASSERT_TOKEN(TK_BOOL_ACTUADOR, "off");
+    ASSERT_TOKEN(TK_EOF,           "");
+}
+
+void test_fase4_case_insensitive_dispositivos(void)
+{
+    lexerInitDesdeString("foco_sala aire_1 persiana_comedor");
+    ASSERT_TOKEN(TK_FOCO_ID,     "foco_sala");
+    ASSERT_TOKEN(TK_AIRE_ID,     "aire_1");
+    ASSERT_TOKEN(TK_PERSIANA_ID, "persiana_comedor");
+    ASSERT_TOKEN(TK_EOF,         "");
+}
+
+/* Fase 4: email con punto y guion antes del @ */
+void test_fase4_email_complejo(void)
+{
+    lexerInitDesdeString("felipe@smart-home.com.ar bomberos@smart-home.com.ar");
+    ASSERT_TOKEN_TEXTO(TK_EMAIL, "felipe@smart-home.com.ar",   "felipe@smart-home.com.ar");
+    ASSERT_TOKEN_TEXTO(TK_EMAIL, "bomberos@smart-home.com.ar", "bomberos@smart-home.com.ar");
+    ASSERT_TOKEN(TK_EOF, "");
+
+    lexerInitDesdeString("user.name@dominio.com");
+    ASSERT_TOKEN_TEXTO(TK_EMAIL, "user.name@dominio.com", "user.name@dominio.com");
+    ASSERT_TOKEN(TK_EOF, "");
+}
+
 int main(void)
 {
     test_fase1_keywords();
@@ -260,6 +364,15 @@ int main(void)
     test_fase3_fechas();
     test_fase3_mixto();
     test_fase3_comentarios();
+
+    test_fase4_modo();
+    test_fase4_color();
+    test_fase4_tiempo_unidades();
+    test_fase4_case_insensitive_keywords();
+    test_fase4_case_insensitive_sensores();
+    test_fase4_case_insensitive_booleanos();
+    test_fase4_case_insensitive_dispositivos();
+    test_fase4_email_complejo();
 
     printf("\nResultados: %d pasaron, %d fallaron.\n", testsPasados, testsFallados);
 

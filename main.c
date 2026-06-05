@@ -139,6 +139,17 @@ Keyword keywords[] = {
     {"MENSAJE", TK_ATRIB_MENSAJE},
     {"ACTIVADA", TK_ATRIB_ACTIVADA},
 
+    /* Valores discretos de modo aire */
+    {"FRIO",  TK_MODO},
+    {"CALOR", TK_MODO},
+    {"VENT",  TK_MODO},
+
+    /* Valores de color */
+    {"BLANCO", TK_COLOR},
+    {"ROJO",   TK_COLOR},
+    {"AZUL",   TK_COLOR},
+    {"BLUE",   TK_COLOR},
+
 };
 
 
@@ -225,6 +236,25 @@ static int columnaActual = 0;
 
 static char _testBuffer[4096];
 static int  _testPos;
+
+/* Escanea adelante en el buffer sin consumir. Retorna 1 si hay '@' antes de espacio/EOF. */
+static int hayArrobaAdelante(void)
+{
+    for (int i = _testPos; _testBuffer[i] != '\0'; i++)
+    {
+        if (_testBuffer[i] == '@') return 1;
+        if (isspace((unsigned char)_testBuffer[i])) return 0;
+    }
+    return 0;
+}
+
+#else
+
+static int hayArrobaAdelante(void) { return 0; }
+
+#endif  /* cierre del bloque TESTING/else para hayArrobaAdelante */
+
+#ifdef TESTING  /* reabre para leerChar y lexerInitDesdeString */
 
 static int leerChar(void)
 {
@@ -586,7 +616,8 @@ Token leerNumeroConUnidad(Token tk)
         unidad[j] = '\0';
         tk.lexema[i] = '\0';
 
-        if (strcmp(unidad, "h") == 0 || strcmp(unidad, "min") == 0)
+        if (strcmp(unidad, "h") == 0 || strcmp(unidad, "m") == 0 ||
+            strcmp(unidad, "min") == 0 || strcmp(unidad, "s") == 0)
             tk.tipo = TK_TIEMPO;
         else if (strcmp(unidad, "lux") == 0)
             tk.tipo = TK_LUX;
@@ -627,7 +658,9 @@ Token obtenerSiguienteToken(void)
             (isalnum(obtenerCaracterActual()) ||
                 obtenerCaracterActual() == '_' ||
                 obtenerCaracterActual() == '@' ||
-                obtenerCaracterActual() == '-'))
+                obtenerCaracterActual() == '-' ||
+                obtenerCaracterActual() == '+' ||
+                (obtenerCaracterActual() == '.' && hayArrobaAdelante())))
         {
             if (i < MAX_LEXEMA_IDX)
                 tk.lexema[i++] = (char)obtenerCaracterActual();
@@ -791,21 +824,21 @@ void match(TokenType esperado) {
     }
 }
 
-/* Buscar en palabras reservadas */
+/* Buscar en palabras reservadas (case-insensitive) */
 TokenType buscarKeyword(const char *lexema)
 {
     size_t n = sizeof(keywords) / sizeof(keywords[0]);
 
     for (size_t i = 0; i < n; i++)
     {
-        if (strcmp(lexema, keywords[i].lexema) == 0)
+        if (strcasecmp(lexema, keywords[i].lexema) == 0)
             return keywords[i].tipo;
     }
 
-    return TK_ERROR; // o TK_IDENTIFICADOR
+    return TK_ERROR;
 }
 
-/* Reconocer dispositivo dinamico por prefijo (FOCO_, AIRE_, ...) */
+/* Reconocer dispositivo dinamico por prefijo (case-insensitive) */
 TokenType reconocerDispositivo(const char *lexema)
 {
     size_t n = sizeof(dispositivos) / sizeof(dispositivos[0]);
@@ -814,8 +847,7 @@ TokenType reconocerDispositivo(const char *lexema)
     {
         size_t len = strlen(dispositivos[i].prefijo);
 
-        // Coincide el prefijo Y hay al menos un caracter de sufijo
-        if (strncmp(lexema, dispositivos[i].prefijo, len) == 0 &&
+        if (strncasecmp(lexema, dispositivos[i].prefijo, len) == 0 &&
             strlen(lexema) > len)
         {
             return dispositivos[i].tipo;
