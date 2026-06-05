@@ -20,8 +20,8 @@ typedef enum {
     TK_ELSE,
 
     /* Parentesis */
-    TK_PAR_IZQ,  
-    TK_PAR_DER,  
+    TK_PAR_IZQ,
+    TK_PAR_DER,
 
     /* Operadores Logicos */
     TK_AND,
@@ -35,12 +35,12 @@ typedef enum {
     TK_MAYORIGUAL,
     TK_MENOR,
     TK_MENORIGUAL,
-    
+
     /* Operador de asignacion */
-    TK_ASIGNACION,     
+    TK_ASIGNACION,
 
     /* Delimitador */
-    TK_DELIMITADOR,    
+    TK_DELIMITADOR,
 
     /* Sensores */
     TK_SENSOR_TEMP,
@@ -48,7 +48,7 @@ typedef enum {
     TK_SENSOR_LUZ,
     TK_SENSOR_MOVIMIENTO,
     TK_SENSOR_HUMO,
-    
+
     /* Dispositivos */
     TK_FOCO_ID,
     TK_AIRE_ID,
@@ -167,15 +167,20 @@ PrefijoDispositivo dispositivos[] = {
 
 // <======================================= Literales y Unidades (Tokens Compuestos) =======================================>
 
+/* Tamaño máximo de lexema y valor.texto. MAX_LEXEMA_IDX es el último índice
+   escribible — el byte [MAX_LEXEMA - 1] queda siempre reservado para '\0'. */
+#define MAX_LEXEMA     64
+#define MAX_LEXEMA_IDX (MAX_LEXEMA - 1)
+
 typedef union {
     double numero;
     int    booleano;
-    char   texto[64];
+    char   texto[MAX_LEXEMA];
 } ValorToken;
 
 typedef struct {
     TokenType tipo;
-    char lexema[64];
+    char lexema[MAX_LEXEMA];
 
     ValorToken valor;
 
@@ -375,7 +380,7 @@ Token leerTexto(Token tk)
     while (!finDeArchivo() &&
            obtenerCaracterActual() != '"')
     {
-        if (i < 63)
+        if (i < MAX_LEXEMA_IDX)
             tk.lexema[i++] = (char)obtenerCaracterActual();
 
         avanzarCaracter();
@@ -416,7 +421,7 @@ Token leerEmail(Token tk)
             if (c == '@')
                 tieneArroba = true;
 
-            if (i < 63)
+            if (i < MAX_LEXEMA_IDX)
                 tk.lexema[i++] = (char)c;
 
             avanzarCaracter();
@@ -455,7 +460,7 @@ Token leerNumeroConUnidad(Token tk)
     // Parte entera
     while (!finDeArchivo() && isdigit(obtenerCaracterActual()))
     {
-        if (i < 63)
+        if (i < MAX_LEXEMA_IDX)
             tk.lexema[i++] = (char)obtenerCaracterActual();
         avanzarCaracter();
     }
@@ -463,7 +468,7 @@ Token leerNumeroConUnidad(Token tk)
     /* Hora HH:MM */
     if (obtenerCaracterActual() == ':')
     {
-        if (i < 63)
+        if (i < MAX_LEXEMA_IDX)
             tk.lexema[i++] = ':';
 
         avanzarCaracter();
@@ -471,7 +476,7 @@ Token leerNumeroConUnidad(Token tk)
         while (!finDeArchivo() &&
                isdigit(obtenerCaracterActual()))
         {
-            if (i < 63)
+            if (i < MAX_LEXEMA_IDX)
                 tk.lexema[i++] = (char)obtenerCaracterActual();
 
             avanzarCaracter();
@@ -511,7 +516,7 @@ Token leerNumeroConUnidad(Token tk)
     // Porcentaje: 80%
     if (u == '%')
     {
-        if (i < 63)
+        if (i < MAX_LEXEMA_IDX)
             tk.lexema[i++] = '%';
         tk.lexema[i] = '\0';
         avanzarCaracter();
@@ -522,19 +527,19 @@ Token leerNumeroConUnidad(Token tk)
     // Temperatura: 30°C  ('°' es 0xC2 0xB0 en UTF-8, debe seguir 'C')
     if (u == 0xC2)
     {
-        if (i < 62)
+        if (i < MAX_LEXEMA_IDX - 1)
             tk.lexema[i++] = (char)0xC2;
         avanzarCaracter();
 
         if (obtenerCaracterActual() == 0xB0)
         {
-            if (i < 62)
+            if (i < MAX_LEXEMA_IDX - 1)
                 tk.lexema[i++] = (char)0xB0;
             avanzarCaracter();
 
             if (obtenerCaracterActual() == 'C')
             {
-                if (i < 63)
+                if (i < MAX_LEXEMA_IDX)
                     tk.lexema[i++] = 'C';
                 tk.lexema[i] = '\0';
                 avanzarCaracter();
@@ -560,7 +565,7 @@ Token leerNumeroConUnidad(Token tk)
 
             if (j < (int)sizeof(unidad) - 1)
                 unidad[j++] = (char)ch;
-            if (i < 63)
+            if (i < MAX_LEXEMA_IDX)
                 tk.lexema[i++] = (char)ch;
 
             avanzarCaracter();
@@ -609,10 +614,9 @@ Token obtenerSiguienteToken(void)
             (isalnum(obtenerCaracterActual()) ||
                 obtenerCaracterActual() == '_' ||
                 obtenerCaracterActual() == '@' ||
-                obtenerCaracterActual() == '.' ||
                 obtenerCaracterActual() == '-'))
         {
-            if (i < 63)
+            if (i < MAX_LEXEMA_IDX)
                 tk.lexema[i++] = (char)obtenerCaracterActual();
             avanzarCaracter();
         }
@@ -620,6 +624,19 @@ Token obtenerSiguienteToken(void)
 
         if (strchr(tk.lexema, '@') != NULL)
         {
+            while (!finDeArchivo())
+            {
+                int ch = obtenerCaracterActual();
+                if (isalnum(ch) || ch == '.' || ch == '-' || ch == '_' || ch == '+')
+                {
+                    if (i < MAX_LEXEMA_IDX)
+                        tk.lexema[i++] = (char)ch;
+                    avanzarCaracter();
+                }
+                else break;
+            }
+            tk.lexema[i] = '\0';
+            strcpy(tk.valor.texto, tk.lexema);
             tk.tipo = TK_EMAIL;
             return tk;
         }
@@ -866,7 +883,7 @@ void parseAsignacion(void)        { /* TODO issue #9 */ }
 
 
 // Faltaría implementar el reconocimiento de:
-// 
+//
 // º palabras reservadas (WHEN, DO, IF, etc.),
 // º identificadores de dispositivos (FOCO_patio, AIRE_comedor, etc.),
 // º operadores (==, !=, >=, <=, =),
