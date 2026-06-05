@@ -342,7 +342,7 @@ Un número **sin unidad** válida (`°C`, `%`, `h`, `min`, `lux`) es `TK_ERROR`.
 
 #### ¿Qué es `make`?
 
-`make` es una herramienta de build estándar en C. Lee el archivo `Makefile` de la raíz y sabe cómo compilar el proyecto sin que tengas que escribir el comando completo cada vez. No tiene nada que ver con Python.
+`make` es una herramienta de build estándar en C. Lee el archivo `Makefile` de la raíz y sabe cómo compilar el proyecto sin que tengas que escribir el comando completo cada vez.
 
 **Instalación según sistema:**
 
