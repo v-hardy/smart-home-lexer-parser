@@ -338,19 +338,23 @@ Un número **sin unidad** válida (`°C`, `%`, `h`, `min`, `lux`) es `TK_ERROR`.
 
 ## Cómo compilar, correr y testear
 
+### 0. Setup inicial (una vez por máquina)
+
+Activar el hook de pre-commit para que los tests corran automáticamente antes de cada commit:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ### 1. Compilar
 
 Desde la raíz del proyecto (donde está `main.c`):
 
 ```bash
-clang -Wall -std=c11 main.c -o lexer
+make
 ```
 
-- `-Wall` activa todos los warnings (ayuda a cazar errores temprano).
-- `-std=c11` fija el estándar de C.
-- `-o lexer` genera un ejecutable llamado `lexer`.
-
-Si no tenés `clang`, `gcc` funciona igual:
+Internamente usa `gcc` o `clang` según lo que haya disponible en el sistema. También podés compilar manualmente:
 
 ```bash
 gcc -Wall -std=c11 main.c -o lexer
@@ -412,11 +416,10 @@ Para ver el código de salida después de correr:
 Tests automáticos del lexer, sin tocar disco (leen desde un string en memoria vía `lexerInitDesdeString()`, disponible solo en modo `TESTING`):
 
 ```bash
-clang -Wall -std=c11 -DTESTING test_lexer.c -o test_lexer
-./test_lexer
+make test
 ```
 
-Imprime cuántos tests pasaron/fallaron y retorna exit code `0` si todo pasa, `1` si algo falla. La Fase 1 cubre keywords, operadores, booleanos, sensores y EOF.
+Imprime cuántos tests pasaron/fallaron y retorna exit code `0` si todo pasa, `1` si algo falla. Si configuraste el hook del paso 0, esto corre automáticamente antes de cada commit.
 
 ---
 
