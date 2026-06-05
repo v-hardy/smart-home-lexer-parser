@@ -298,13 +298,51 @@ int obtenerCaracterActual(void)
     return caracterActual;
 }
 
-/* Omitir espacios */
+/* Obtener Siguiente Caracter */
+int obtenerSiguienteCaracter(void)
+{
+    int c = fgetc(fuente);
+
+    if (c != EOF)
+        ungetc(c, fuente);
+
+    return c;
+}
+
+/* Omitir espacios y comentarios */
 void omitirEspacios(void)
 {
-    while (!finDeArchivo() &&
-           isspace(caracterActual))
+    while (!finDeArchivo())
     {
-        avanzarCaracter();
+        /* Espacios, tabs, saltos de línea, etc. */
+        if (isspace(caracterActual))
+        {
+            avanzarCaracter();
+            continue;
+        }
+
+        /* Comentario de una línea */
+        if (caracterActual == '/' &&
+            obtenerSiguienteCaracter() == '/')
+        {
+            /* Avanzar "//" */
+            avanzarCaracter();
+            avanzarCaracter();
+
+            /* Avanzar hasta fin de línea */
+            while (!finDeArchivo() &&
+                   caracterActual != '\n')
+            {
+                avanzarCaracter();
+            }
+
+            /* El '\n' será consumido en la próxima iteración
+               por el bloque isspace(), actualizando lineaActual */
+            continue;
+        }
+
+        /* Ya no hay espacios ni comentarios */
+        break;
     }
 }
 
@@ -327,6 +365,83 @@ Token crearTokenEOF(void)
     return tk;
 }
 
+Token leerTexto(Token tk)
+{
+    int i = 0;
+
+    /* Avanzar comilla inicial */
+    avanzarCaracter();
+
+    while (!finDeArchivo() &&
+           obtenerCaracterActual() != '"')
+    {
+        if (i < 63)
+            tk.lexema[i++] = (char)obtenerCaracterActual();
+
+        avanzarCaracter();
+    }
+
+    if (obtenerCaracterActual() != '"')
+    {
+        tk.lexema[i] = '\0';
+        tk.tipo = TK_ERROR;
+        return tk;
+    }
+
+    /* Avanzar comilla final */
+    avanzarCaracter();
+
+    tk.lexema[i] = '\0';
+    strcpy(tk.valor.texto, tk.lexema);
+
+    tk.tipo = TK_TEXTO;
+    return tk;
+}
+
+Token leerEmail(Token tk)
+{
+    int i = 0;
+    bool tieneArroba = false;
+
+    while (!finDeArchivo())
+    {
+        int c = obtenerCaracterActual();
+
+        if (isalnum(c) ||
+            c == '@' ||
+            c == '.' ||
+            c == '-' ||
+            c == '_')
+        {
+            if (c == '@')
+                tieneArroba = true;
+
+            if (i < 63)
+                tk.lexema[i++] = (char)c;
+
+            avanzarCaracter();
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    tk.lexema[i] = '\0';
+
+    if (tieneArroba)
+    {
+        strcpy(tk.valor.texto, tk.lexema);
+        tk.tipo = TK_EMAIL;
+    }
+    else
+    {
+        tk.tipo = TK_ERROR;
+    }
+
+    return tk;
+}
+
 /*
    Literal numerico con unidad: 30°C, 80%, 2h, 30min, 500lux.
    Solo enteros (decision de diseño, issue #5): el TP maneja valores enteros y
@@ -343,6 +458,50 @@ Token leerNumeroConUnidad(Token tk)
         if (i < 63)
             tk.lexema[i++] = (char)obtenerCaracterActual();
         avanzarCaracter();
+    }
+
+    /* Hora HH:MM */
+    if (obtenerCaracterActual() == ':')
+    {
+        if (i < 63)
+            tk.lexema[i++] = ':';
+
+        avanzarCaracter();
+
+        while (!finDeArchivo() &&
+               isdigit(obtenerCaracterActual()))
+        {
+            if (i < 63)
+                tk.lexema[i++] = (char)obtenerCaracterActual();
+
+            avanzarCaracter();
+        }
+
+        tk.lexema[i] = '\0';
+
+        if (strlen(tk.lexema) == 5 &&
+            isdigit(tk.lexema[0]) &&
+            isdigit(tk.lexema[1]) &&
+            tk.lexema[2] == ':' &&
+            isdigit(tk.lexema[3]) &&
+            isdigit(tk.lexema[4]))
+        {
+            int hh = (tk.lexema[0] - '0') * 10 +
+                     (tk.lexema[1] - '0');
+
+            int mm = (tk.lexema[3] - '0') * 10 +
+                     (tk.lexema[4] - '0');
+
+            if (hh >= 0 && hh <= 23 &&
+                mm >= 0 && mm <= 59)
+            {
+                tk.tipo = TK_HORA;
+                return tk;
+            }
+        }
+
+        tk.tipo = TK_ERROR;
+        return tk;
     }
     tk.lexema[i] = '\0';
     tk.valor.numero = atof(tk.lexema);
@@ -447,13 +606,23 @@ Token obtenerSiguienteToken(void)
     {
         int i = 0;
         while (!finDeArchivo() &&
-               (isalnum(obtenerCaracterActual()) || obtenerCaracterActual() == '_'))
+            (isalnum(obtenerCaracterActual()) ||
+                obtenerCaracterActual() == '_' ||
+                obtenerCaracterActual() == '@' ||
+                obtenerCaracterActual() == '.' ||
+                obtenerCaracterActual() == '-'))
         {
             if (i < 63)
                 tk.lexema[i++] = (char)obtenerCaracterActual();
             avanzarCaracter();
         }
         tk.lexema[i] = '\0';
+
+        if (strchr(tk.lexema, '@') != NULL)
+        {
+            tk.tipo = TK_EMAIL;
+            return tk;
+        }
 
         // Primero palabra reservada fija; si no, prefijo de dispositivo dinamico
         TokenType t = buscarKeyword(tk.lexema);
@@ -464,9 +633,17 @@ Token obtenerSiguienteToken(void)
         return tk;
     }
 
-    /* Literales numericos con unidad: 30°C, 80%, 2h, 30min, 500lux. */
+    /* Literales numericos con unidad o literal de hora: HH:MM*: 30°C, 80%, 2h, 30min, 500lux, HH:MM. */
     if (isdigit(c))
+    {
         return leerNumeroConUnidad(tk);
+    }
+
+    /* Literal de texto */
+    if (c == '"')
+    {
+        return leerTexto(tk);
+    }
 
     /* Operadores, parentesis y delimitador.
        La posicion (linea/columna) ya quedo guardada arriba, antes de avanzar. */
@@ -617,22 +794,6 @@ TokenType reconocerDispositivo(const char *lexema)
 
     return TK_ERROR;
 }
-
-// Instrucciones ::= Instruccion
-//                 | Instruccion Instrucciones
-//void parsePrograma(void) {
-//    parseInstrucciones();
-//    match(TK_EOF);
-//}
-//
-// void parseInstrucciones(void)
-// {
-//    do
-//    {
-//        parseInstruccion();
-//    }
-//    while (iniciaInstruccion(lookahead.tipo));
-// }
 
 //Instrucciones ::= Instruccion+
 void parsePrograma(void)
