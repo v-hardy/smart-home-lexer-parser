@@ -259,18 +259,16 @@ void test_fase4_modo(void)
 /* Fase 4: TK_COLOR — blanco, rojo, azul, blue */
 void test_fase4_color(void)
 {
-    lexerInitDesdeString("blanco rojo azul blue");
+    lexerInitDesdeString("blanco rojo azul");
     ASSERT_TOKEN(TK_COLOR, "blanco");
     ASSERT_TOKEN(TK_COLOR, "rojo");
     ASSERT_TOKEN(TK_COLOR, "azul");
-    ASSERT_TOKEN(TK_COLOR, "blue");
     ASSERT_TOKEN(TK_EOF,   "");
 
-    lexerInitDesdeString("BLANCO ROJO AZUL BLUE");
+    lexerInitDesdeString("BLANCO ROJO AZUL");
     ASSERT_TOKEN(TK_COLOR, "BLANCO");
     ASSERT_TOKEN(TK_COLOR, "ROJO");
     ASSERT_TOKEN(TK_COLOR, "AZUL");
-    ASSERT_TOKEN(TK_COLOR, "BLUE");
     ASSERT_TOKEN(TK_EOF,   "");
 }
 

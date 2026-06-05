@@ -148,7 +148,6 @@ Keyword keywords[] = {
     {"BLANCO", TK_COLOR},
     {"ROJO",   TK_COLOR},
     {"AZUL",   TK_COLOR},
-    {"BLUE",   TK_COLOR},
 
 };
 
