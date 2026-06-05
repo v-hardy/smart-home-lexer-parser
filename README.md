@@ -340,11 +340,30 @@ Un número **sin unidad** válida (`°C`, `%`, `h`, `min`, `lux`) es `TK_ERROR`.
 
 ### 0. Setup inicial (una vez por máquina)
 
-Activar el hook de pre-commit para que los tests corran automáticamente antes de cada commit:
+#### ¿Qué es `make`?
+
+`make` es una herramienta de build estándar en C. Lee el archivo `Makefile` de la raíz y sabe cómo compilar el proyecto sin que tengas que escribir el comando completo cada vez. No tiene nada que ver con Python.
+
+**Instalación según sistema:**
+
+| Sistema | Instrucción |
+|---------|-------------|
+| Linux (Ubuntu/Debian) | `sudo apt install build-essential` |
+| Linux (Fedora/RHEL) | `sudo dnf install make gcc` |
+| macOS | `xcode-select --install` |
+| Windows | Usar **WSL** (recomendado) o instalar **MinGW/MSYS2** |
+
+> En Windows la opción más simple es WSL: abrís una terminal Linux dentro de Windows y todo funciona igual que en Linux.
+
+#### Activar el pre-commit hook
+
+Una vez que tenés `make`, activar el hook para que los tests corran automáticamente antes de cada commit:
 
 ```bash
 git config core.hooksPath .githooks
 ```
+
+Esto le dice a Git que busque los hooks en `.githooks/` (versionado en el repo) en vez de `.git/hooks/` (local, no compartido). A partir de ese momento, si los tests fallan, el commit se cancela.
 
 ### 1. Compilar
 
@@ -354,11 +373,15 @@ Desde la raíz del proyecto (donde está `main.c`):
 make
 ```
 
-Internamente usa `gcc` o `clang` según lo que haya disponible en el sistema. También podés compilar manualmente:
+Internamente detecta si tenés `gcc` o `clang` y corre el equivalente a:
 
 ```bash
 gcc -Wall -std=c11 main.c -o lexer
 ```
+
+- `-Wall`: activa todos los warnings (ayuda a cazar errores temprano)
+- `-std=c11`: fija el estándar de C
+- `-o lexer`: nombre del ejecutable generado
 
 **Resultado esperado:** ningún mensaje y se crea el archivo `lexer`. Si aparecen errores/warnings, hay que corregirlos antes de seguir.
 
