@@ -20,8 +20,8 @@ typedef enum {
     TK_ELSE,
 
     /* Parentesis */
-    TK_PAR_IZQ,  
-    TK_PAR_DER,  
+    TK_PAR_IZQ,
+    TK_PAR_DER,
 
     /* Operadores Logicos */
     TK_AND,
@@ -35,12 +35,12 @@ typedef enum {
     TK_MAYORIGUAL,
     TK_MENOR,
     TK_MENORIGUAL,
-    
+
     /* Operador de asignacion */
-    TK_ASIGNACION,     
+    TK_ASIGNACION,
 
     /* Delimitador */
-    TK_DELIMITADOR,    
+    TK_DELIMITADOR,
 
     /* Sensores */
     TK_SENSOR_TEMP,
@@ -48,7 +48,7 @@ typedef enum {
     TK_SENSOR_LUZ,
     TK_SENSOR_MOVIMIENTO,
     TK_SENSOR_HUMO,
-    
+
     /* Dispositivos */
     TK_FOCO_ID,
     TK_AIRE_ID,
@@ -167,15 +167,20 @@ PrefijoDispositivo dispositivos[] = {
 
 // <======================================= Literales y Unidades (Tokens Compuestos) =======================================>
 
+/* Tamaño máximo de lexema y valor.texto. MAX_LEXEMA_IDX es el último índice
+   escribible — el byte [MAX_LEXEMA - 1] queda siempre reservado para '\0'. */
+#define MAX_LEXEMA     64
+#define MAX_LEXEMA_IDX (MAX_LEXEMA - 1)
+
 typedef union {
     double numero;
     int    booleano;
-    char   texto[64];
+    char   texto[MAX_LEXEMA];
 } ValorToken;
 
 typedef struct {
     TokenType tipo;
-    char lexema[64];
+    char lexema[MAX_LEXEMA];
 
     ValorToken valor;
 
@@ -298,13 +303,56 @@ int obtenerCaracterActual(void)
     return caracterActual;
 }
 
-/* Omitir espacios */
+/* Peek del siguiente caracter sin consumirlo. Usa leerChar + ungetChar
+   para funcionar tanto en modo normal como en TESTING. */
+int obtenerSiguienteCaracter(void)
+{
+#ifdef TESTING
+    if (_testBuffer[_testPos] == '\0')
+        return EOF;
+    return (unsigned char)_testBuffer[_testPos];
+#else
+    int c = fgetc(fuente);
+    if (c != EOF)
+        ungetc(c, fuente);
+    return c;
+#endif
+}
+
+/* Omitir espacios y comentarios */
 void omitirEspacios(void)
 {
-    while (!finDeArchivo() &&
-           isspace(caracterActual))
+    while (!finDeArchivo())
     {
-        avanzarCaracter();
+        /* Espacios, tabs, saltos de línea, etc. */
+        if (isspace(caracterActual))
+        {
+            avanzarCaracter();
+            continue;
+        }
+
+        /* Comentario de una línea */
+        if (caracterActual == '/' &&
+            obtenerSiguienteCaracter() == '/')
+        {
+            /* Avanzar "//" */
+            avanzarCaracter();
+            avanzarCaracter();
+
+            /* Avanzar hasta fin de línea */
+            while (!finDeArchivo() &&
+                   caracterActual != '\n')
+            {
+                avanzarCaracter();
+            }
+
+            /* El '\n' será consumido en la próxima iteración
+               por el bloque isspace(), actualizando lineaActual */
+            continue;
+        }
+
+        /* Ya no hay espacios ni comentarios */
+        break;
     }
 }
 
@@ -327,6 +375,42 @@ Token crearTokenEOF(void)
     return tk;
 }
 
+Token leerTexto(Token tk)
+{
+    int i = 0;
+    int j = 0;
+
+    /* Lexema incluye comillas: "Hola mundo". valor.texto es el contenido sin comillas. */
+    tk.lexema[i++] = '"';
+    avanzarCaracter();
+
+    while (!finDeArchivo() &&
+           obtenerCaracterActual() != '"')
+    {
+        int ch = obtenerCaracterActual();
+        if (i < MAX_LEXEMA_IDX)     tk.lexema[i++] = (char)ch;
+        if (j < MAX_LEXEMA_IDX)     tk.valor.texto[j++] = (char)ch;
+        avanzarCaracter();
+    }
+
+    if (obtenerCaracterActual() != '"')
+    {
+        tk.lexema[i] = '\0';
+        tk.valor.texto[j] = '\0';
+        tk.tipo = TK_ERROR;
+        return tk;
+    }
+
+    if (i < MAX_LEXEMA_IDX) tk.lexema[i++] = '"';
+    tk.lexema[i] = '\0';
+    tk.valor.texto[j] = '\0';
+    avanzarCaracter();
+
+    tk.tipo = TK_TEXTO;
+    return tk;
+}
+
+
 /*
    Literal numerico con unidad: 30°C, 80%, 2h, 30min, 500lux.
    Solo enteros (decision de diseño, issue #5): el TP maneja valores enteros y
@@ -340,10 +424,103 @@ Token leerNumeroConUnidad(Token tk)
     // Parte entera
     while (!finDeArchivo() && isdigit(obtenerCaracterActual()))
     {
-        if (i < 63)
+        if (i < MAX_LEXEMA_IDX)
             tk.lexema[i++] = (char)obtenerCaracterActual();
         avanzarCaracter();
     }
+
+    /* Hora HH:MM */
+    if (obtenerCaracterActual() == ':')
+    {
+        if (i < MAX_LEXEMA_IDX)
+            tk.lexema[i++] = ':';
+
+        avanzarCaracter();
+
+        while (!finDeArchivo() &&
+               isdigit(obtenerCaracterActual()))
+        {
+            if (i < MAX_LEXEMA_IDX)
+                tk.lexema[i++] = (char)obtenerCaracterActual();
+
+            avanzarCaracter();
+        }
+
+        tk.lexema[i] = '\0';
+
+        if (strlen(tk.lexema) == 5 &&
+            isdigit(tk.lexema[0]) &&
+            isdigit(tk.lexema[1]) &&
+            tk.lexema[2] == ':' &&
+            isdigit(tk.lexema[3]) &&
+            isdigit(tk.lexema[4]))
+        {
+            int hh = (tk.lexema[0] - '0') * 10 +
+                     (tk.lexema[1] - '0');
+
+            int mm = (tk.lexema[3] - '0') * 10 +
+                     (tk.lexema[4] - '0');
+
+            if (hh >= 0 && hh <= 23 &&
+                mm >= 0 && mm <= 59)
+            {
+                strncpy(tk.valor.texto, tk.lexema, MAX_LEXEMA_IDX);
+                tk.valor.texto[MAX_LEXEMA_IDX] = '\0';
+                tk.tipo = TK_HORA;
+                return tk;
+            }
+        }
+
+        tk.tipo = TK_ERROR;
+        return tk;
+    }
+
+    /* Fecha DD/MM/AAAA */
+    if (obtenerCaracterActual() == '/')
+    {
+        if (i < MAX_LEXEMA_IDX) tk.lexema[i++] = '/';
+        avanzarCaracter();
+
+        int digits = 0;
+        while (!finDeArchivo() && isdigit(obtenerCaracterActual()) && digits < 2)
+        {
+            if (i < MAX_LEXEMA_IDX) tk.lexema[i++] = (char)obtenerCaracterActual();
+            avanzarCaracter();
+            digits++;
+        }
+
+        if (digits != 2 || obtenerCaracterActual() != '/')
+        {
+            tk.lexema[i] = '\0';
+            tk.tipo = TK_ERROR;
+            return tk;
+        }
+
+        if (i < MAX_LEXEMA_IDX) tk.lexema[i++] = '/';
+        avanzarCaracter();
+
+        digits = 0;
+        while (!finDeArchivo() && isdigit(obtenerCaracterActual()) && digits < 4)
+        {
+            if (i < MAX_LEXEMA_IDX) tk.lexema[i++] = (char)obtenerCaracterActual();
+            avanzarCaracter();
+            digits++;
+        }
+        tk.lexema[i] = '\0';
+
+        if (digits == 4)
+        {
+            strncpy(tk.valor.texto, tk.lexema, MAX_LEXEMA_IDX);
+            tk.valor.texto[MAX_LEXEMA_IDX] = '\0';
+            tk.tipo = TK_FECHA;
+        }
+        else
+        {
+            tk.tipo = TK_ERROR;
+        }
+        return tk;
+    }
+
     tk.lexema[i] = '\0';
     tk.valor.numero = atof(tk.lexema);
 
@@ -352,7 +529,7 @@ Token leerNumeroConUnidad(Token tk)
     // Porcentaje: 80%
     if (u == '%')
     {
-        if (i < 63)
+        if (i < MAX_LEXEMA_IDX)
             tk.lexema[i++] = '%';
         tk.lexema[i] = '\0';
         avanzarCaracter();
@@ -363,19 +540,19 @@ Token leerNumeroConUnidad(Token tk)
     // Temperatura: 30°C  ('°' es 0xC2 0xB0 en UTF-8, debe seguir 'C')
     if (u == 0xC2)
     {
-        if (i < 62)
+        if (i < MAX_LEXEMA_IDX - 1)
             tk.lexema[i++] = (char)0xC2;
         avanzarCaracter();
 
         if (obtenerCaracterActual() == 0xB0)
         {
-            if (i < 62)
+            if (i < MAX_LEXEMA_IDX - 1)
                 tk.lexema[i++] = (char)0xB0;
             avanzarCaracter();
 
             if (obtenerCaracterActual() == 'C')
             {
-                if (i < 63)
+                if (i < MAX_LEXEMA_IDX)
                     tk.lexema[i++] = 'C';
                 tk.lexema[i] = '\0';
                 avanzarCaracter();
@@ -401,7 +578,7 @@ Token leerNumeroConUnidad(Token tk)
 
             if (j < (int)sizeof(unidad) - 1)
                 unidad[j++] = (char)ch;
-            if (i < 63)
+            if (i < MAX_LEXEMA_IDX)
                 tk.lexema[i++] = (char)ch;
 
             avanzarCaracter();
@@ -447,13 +624,35 @@ Token obtenerSiguienteToken(void)
     {
         int i = 0;
         while (!finDeArchivo() &&
-               (isalnum(obtenerCaracterActual()) || obtenerCaracterActual() == '_'))
+            (isalnum(obtenerCaracterActual()) ||
+                obtenerCaracterActual() == '_' ||
+                obtenerCaracterActual() == '@' ||
+                obtenerCaracterActual() == '-'))
         {
-            if (i < 63)
+            if (i < MAX_LEXEMA_IDX)
                 tk.lexema[i++] = (char)obtenerCaracterActual();
             avanzarCaracter();
         }
         tk.lexema[i] = '\0';
+
+        if (strchr(tk.lexema, '@') != NULL)
+        {
+            while (!finDeArchivo())
+            {
+                int ch = obtenerCaracterActual();
+                if (isalnum(ch) || ch == '.' || ch == '-' || ch == '_' || ch == '+')
+                {
+                    if (i < MAX_LEXEMA_IDX)
+                        tk.lexema[i++] = (char)ch;
+                    avanzarCaracter();
+                }
+                else break;
+            }
+            tk.lexema[i] = '\0';
+            strcpy(tk.valor.texto, tk.lexema);
+            tk.tipo = TK_EMAIL;
+            return tk;
+        }
 
         // Primero palabra reservada fija; si no, prefijo de dispositivo dinamico
         TokenType t = buscarKeyword(tk.lexema);
@@ -464,9 +663,17 @@ Token obtenerSiguienteToken(void)
         return tk;
     }
 
-    /* Literales numericos con unidad: 30°C, 80%, 2h, 30min, 500lux. */
+    /* Literales numericos con unidad o literal de hora: HH:MM*: 30°C, 80%, 2h, 30min, 500lux, HH:MM. */
     if (isdigit(c))
+    {
         return leerNumeroConUnidad(tk);
+    }
+
+    /* Literal de texto */
+    if (c == '"')
+    {
+        return leerTexto(tk);
+    }
 
     /* Operadores, parentesis y delimitador.
        La posicion (linea/columna) ya quedo guardada arriba, antes de avanzar. */
@@ -618,22 +825,6 @@ TokenType reconocerDispositivo(const char *lexema)
     return TK_ERROR;
 }
 
-// Instrucciones ::= Instruccion
-//                 | Instruccion Instrucciones
-//void parsePrograma(void) {
-//    parseInstrucciones();
-//    match(TK_EOF);
-//}
-//
-// void parseInstrucciones(void)
-// {
-//    do
-//    {
-//        parseInstruccion();
-//    }
-//    while (iniciaInstruccion(lookahead.tipo));
-// }
-
 //Instrucciones ::= Instruccion+
 void parsePrograma(void)
 {
@@ -705,7 +896,7 @@ void parseAsignacion(void)        { /* TODO issue #9 */ }
 
 
 // Faltaría implementar el reconocimiento de:
-// 
+//
 // º palabras reservadas (WHEN, DO, IF, etc.),
 // º identificadores de dispositivos (FOCO_patio, AIRE_comedor, etc.),
 // º operadores (==, !=, >=, <=, =),

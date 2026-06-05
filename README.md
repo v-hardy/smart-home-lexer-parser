@@ -338,23 +338,50 @@ Un número **sin unidad** válida (`°C`, `%`, `h`, `min`, `lux`) es `TK_ERROR`.
 
 ## Cómo compilar, correr y testear
 
+### 0. Setup inicial (una vez por máquina)
+
+#### ¿Qué es `make`?
+
+`make` es una herramienta de build estándar en C. Lee el archivo `Makefile` de la raíz y sabe cómo compilar el proyecto sin que tengas que escribir el comando completo cada vez.
+
+**Instalación según sistema:**
+
+| Sistema | Instrucción |
+|---------|-------------|
+| Linux (Ubuntu/Debian) | `sudo apt install build-essential` |
+| Linux (Fedora/RHEL) | `sudo dnf install make gcc` |
+| macOS | `xcode-select --install` |
+| Windows | Usar **WSL** (recomendado) o instalar **MinGW/MSYS2** |
+
+> En Windows la opción más simple es WSL: abrís una terminal Linux dentro de Windows y todo funciona igual que en Linux.
+
+#### Activar el pre-commit hook
+
+Una vez que tenés `make`, activar el hook para que los tests corran automáticamente antes de cada commit:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Esto le dice a Git que busque los hooks en `.githooks/` (versionado en el repo) en vez de `.git/hooks/` (local, no compartido). A partir de ese momento, si los tests fallan, el commit se cancela.
+
 ### 1. Compilar
 
 Desde la raíz del proyecto (donde está `main.c`):
 
 ```bash
-clang -Wall -std=c11 main.c -o lexer
+make
 ```
 
-- `-Wall` activa todos los warnings (ayuda a cazar errores temprano).
-- `-std=c11` fija el estándar de C.
-- `-o lexer` genera un ejecutable llamado `lexer`.
-
-Si no tenés `clang`, `gcc` funciona igual:
+Internamente detecta si tenés `gcc` o `clang` y corre el equivalente a:
 
 ```bash
 gcc -Wall -std=c11 main.c -o lexer
 ```
+
+- `-Wall`: activa todos los warnings (ayuda a cazar errores temprano)
+- `-std=c11`: fija el estándar de C
+- `-o lexer`: nombre del ejecutable generado
 
 **Resultado esperado:** ningún mensaje y se crea el archivo `lexer`. Si aparecen errores/warnings, hay que corregirlos antes de seguir.
 
@@ -412,11 +439,10 @@ Para ver el código de salida después de correr:
 Tests automáticos del lexer, sin tocar disco (leen desde un string en memoria vía `lexerInitDesdeString()`, disponible solo en modo `TESTING`):
 
 ```bash
-clang -Wall -std=c11 -DTESTING test_lexer.c -o test_lexer
-./test_lexer
+make test
 ```
 
-Imprime cuántos tests pasaron/fallaron y retorna exit code `0` si todo pasa, `1` si algo falla. La Fase 1 cubre keywords, operadores, booleanos, sensores y EOF.
+Imprime cuántos tests pasaron/fallaron y retorna exit code `0` si todo pasa, `1` si algo falla. Si configuraste el hook del paso 0, esto corre automáticamente antes de cada commit.
 
 ---
 
