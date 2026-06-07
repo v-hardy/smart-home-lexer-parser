@@ -1,6 +1,6 @@
 # Guía — Lexer/Parser Smart Home DSL
 
-Este documento está pensado para programadores que saben programar pero nunca trabajaron con C ni con lexers o parsers. Explica cómo funciona el código, por qué está estructurado así y qué herramientas de C se usan en el camino.
+Referencia del proyecto para entender el código, las decisiones de diseño y los conceptos de C que aparecen en el camino.
 
 ---
 
@@ -59,7 +59,7 @@ El **lexer** lee el texto carácter por carácter y lo agrupa en tokens. Un toke
 - `WHEN` → un token de tipo `TK_WHEN`
 - `.` → un token de tipo `TK_DELIMITADOR`
 
-El lexer no sabe si la secuencia de tokens tiene sentido — solo reconoce piezas individuales.
+El lexer no valida si la secuencia tiene sentido — solo identifica piezas individuales.
 
 El **parser** recibe esa secuencia y verifica que siga las reglas de la gramática. Si después de `WHEN` no viene una condición válida, o falta el `DO`, el parser reporta error de sintaxis.
 
@@ -517,7 +517,7 @@ void parseAsignacion(void)        // dispositivo . atributo = valor
 
 `parsePrograma` y `parseInstruccion` están implementados: reconocen qué instrucción viene mirando `lookahead` y delegan. `iniciaInstruccion()` devuelve `true` si el token puede iniciar una instrucción válida.
 
-Los cuatro restantes (`parseBloqueWhen`, `parseBloqueEvery`, `parseBloqueCondicional`, `parseAsignacion`) son stubs vacíos. Su implementación está en el issue #9. Antes de empezar con cualquiera de ellos, leer ese issue — tiene la gramática completa.
+Los cuatro restantes (`parseBloqueWhen`, `parseBloqueEvery`, `parseBloqueCondicional`, `parseAsignacion`) son stubs vacíos — retornan sin hacer nada. Su implementación está definida en el issue #9, que tiene la gramática completa. Leerlo antes de arrancar con cualquiera de ellos.
 
 ---
 
