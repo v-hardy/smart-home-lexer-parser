@@ -1,17 +1,60 @@
-# Detectar compilador disponible
-CC := $(or $(shell command -v gcc 2>/dev/null), $(shell command -v clang 2>/dev/null))
-CFLAGS := -Wall -std=c11
+# =========================
+# Configuración general
+# =========================
 
-.PHONY: all test clean
+CC      := gcc
+CFLAGS  := -Wall -Wextra -std=c11 -g
 
-all: lexer
+TARGET  := dsl
+SRC     := main.c lexer.c parser.c
+OBJ     := $(SRC:.c=.o)
 
-lexer: main.c
-	$(CC) $(CFLAGS) main.c -o lexer
+# =========================
+# Reglas principales
+# =========================
 
-test: main.c test_lexer.c
-	$(CC) $(CFLAGS) -DTESTING test_lexer.c -o test_lexer
-	./test_lexer
+all: $(TARGET)
+
+$(TARGET): $(OBJ)
+	$(CC) $(CFLAGS) -o $@ $^
+
+# =========================
+# Compilación de objetos
+# =========================
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# =========================
+# Limpieza
+# =========================
 
 clean:
-	rm -f lexer test_lexer
+	rm -f $(OBJ) $(TARGET)
+
+# =========================
+# Ejecutar (Linux/macOS)
+# =========================
+
+run: $(TARGET)
+	./$(TARGET) test.dsl
+
+# =========================
+# Ejecutar (Windows)
+# =========================
+
+run-win: $(TARGET)
+	$(TARGET).exe test.dsl
+
+# =========================
+# Debug lexer
+# =========================
+
+tokens: $(TARGET)
+	./$(TARGET) test.dsl --tokens
+
+# =========================
+# PHONY
+# =========================
+
+.PHONY: all clean run run-win tokens
