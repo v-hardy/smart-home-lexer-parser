@@ -8,6 +8,8 @@ extern Token lookahead;
 int abrirFuente(const char *nombre);
 void cerrarFuente(void);
 
+void lexerInitDesdeString(const char *texto);
+
 Token obtenerSiguienteToken(void);
 
 void siguienteToken(void);

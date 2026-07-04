@@ -105,44 +105,44 @@ static PrefijoDispositivo dispositivos[] = {
 // <======================================= Funciones privadas =======================================>
 
 /* Lectura de caracteres */
-/*
-   Toda la lectura de caracteres pasa por leerChar(). En modo normal lee del
-   archivo; en modo TESTING lee de un buffer en memoria, para poder testear
-   el lexer desde un string sin tocar disco (ver lexerInitDesdeString).
-*/
-#ifdef TESTING
+typedef enum
+{
+    FUENTE_ARCHIVO,
+    FUENTE_CADENA
+} TipoFuente;
 
-static char _testBuffer[4096];
-static int  _testPos;
+static TipoFuente tipoFuente = FUENTE_ARCHIVO;
+
+static char bufferCadena[4096];
+static int posCadena = 0;
 
 static int leerChar(void)
 {
-    if (_testBuffer[_testPos] == '\0')
+    if (tipoFuente == FUENTE_ARCHIVO)
+    {
+        return fgetc(fuente);
+    }
+
+    if (bufferCadena[posCadena] == '\0')
         return EOF;
 
-    return (unsigned char)_testBuffer[_testPos++];
+    return (unsigned char)bufferCadena[posCadena++];
 }
 
-/* Reinicia el lexer para leer desde un string (solo modo test) */
 void lexerInitDesdeString(const char *texto)
 {
-    strncpy(_testBuffer, texto, sizeof(_testBuffer) - 1);
-    _testBuffer[sizeof(_testBuffer) - 1] = '\0';
+    tipoFuente = FUENTE_CADENA;
 
-    _testPos       = 0;
-    lineaActual    = 1;
-    columnaActual  = 0;
+    strncpy(bufferCadena, texto, sizeof(bufferCadena)-1);
+    bufferCadena[sizeof(bufferCadena)-1] = '\0';
+
+    posCadena = 0;
+    lineaActual = 1;
+    columnaActual = 0;
+
     caracterActual = leerChar();
 }
 
-#else
-
-static int leerChar(void)
-{
-    return fgetc(fuente);
-}
-
-#endif
 
 /* Avanzar un caracter */
 static void avanzarCaracter(void)
@@ -166,20 +166,23 @@ static int obtenerCaracterActual(void)
     return caracterActual;
 }
 
-/* Peek del siguiente caracter sin consumirlo. Usa leerChar + ungetChar
-   para funcionar tanto en modo normal como en TESTING. */
+/* Obtiene siguiente caracter segun modo */
 static int obtenerSiguienteCaracter(void)
 {
-#ifdef TESTING
-    if (_testBuffer[_testPos] == '\0')
-        return EOF;
-    return (unsigned char)_testBuffer[_testPos];
-#else
+    if (tipoFuente == FUENTE_CADENA)
+    {
+        if (bufferCadena[posCadena] == '\0')
+            return EOF;
+
+        return (unsigned char)bufferCadena[posCadena];
+    }
+
     int c = fgetc(fuente);
+
     if (c != EOF)
         ungetc(c, fuente);
+
     return c;
-#endif
 }
 
 /* Omitir espacios y comentarios */
@@ -570,13 +573,17 @@ static const char *nombreToken(TokenType t)
 
 // <======================================= Funciones publicas =======================================>
 
-//* Abrir archivo */
+//* Abrir archivo (o lectura desde terminal) */
 int abrirFuente(const char *nombreArchivo)
 {
     fuente = fopen(nombreArchivo, "r");
 
     if (fuente == NULL)
         return 0;
+
+    tipoFuente = FUENTE_ARCHIVO;
+    lineaActual = 1;
+    columnaActual = 0;
 
     caracterActual = leerChar();
 

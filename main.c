@@ -7,9 +7,37 @@
 #include "lexer.h"
 #include "parser.h"
 
+static void modoInteractivo(void)
+{
+    char linea[4096];
+
+    printf("Modo interactivo. (TOKENIZADOR)\n");
+    printf("Escriba 'exit' para salir.\n");
+
+    while (1)
+    {
+        printf("> ");
+
+        if (fgets(linea, sizeof(linea), stdin) == NULL)
+            break;
+
+        if (strcmp(linea, "exit\n") == 0)
+            break;
+
+        lexerInitDesdeString(linea);
+
+        volcarTokens();
+    }
+}
 
 int main(int argc, char *argv[])
 {
+    if (argc == 1)
+    {
+        modoInteractivo();
+        return EXIT_SUCCESS;
+    }
+
     if (argc != 3)
     {
         fprintf(stderr, "Uso: %s [tokens|parse] archivo.smart\n", argv[0]);
