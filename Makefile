@@ -5,7 +5,7 @@
 CC      := gcc
 CFLAGS  := -Wall -Wextra -std=c11 -g
 
-TARGET  := dsl
+TARGET  := smart
 SRC     := main.c lexer.c parser.c
 OBJ     := $(SRC:.c=.o)
 
@@ -37,21 +37,21 @@ clean:
 # =========================
 
 run: $(TARGET)
-	./$(TARGET) test.dsl
+	./$(TARGET) parse programa1.smart
 
 # =========================
 # Ejecutar (Windows)
 # =========================
 
 run-win: $(TARGET)
-	$(TARGET).exe test.dsl
+	$(TARGET).exe parse programa1.smart
 
 # =========================
 # Debug lexer
 # =========================
 
 tokens: $(TARGET)
-	./$(TARGET) test.dsl --tokens
+	./$(TARGET) tokens programa1.smart
 
 # =========================
 # PHONY

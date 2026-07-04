@@ -1,7 +1,9 @@
 // <======================================= Definiciones de tipo de datos =======================================>
 
+#ifndef TOKEN_H
+#define TOKEN_H
 typedef enum {
-    TK_ERROR,
+    TK_ERROR = 0,
 
     /* Palabras reservadas */
     TK_WHEN,
@@ -109,3 +111,4 @@ typedef struct {
     int columna;
 } Token;
 
+#endif

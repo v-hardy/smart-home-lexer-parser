@@ -647,8 +647,43 @@ Token obtenerSiguienteToken(void)
 
         // Primero palabra reservada fija; si no, prefijo de dispositivo dinamico
         TokenType t = buscarKeyword(tk.lexema);
+
         if (t == TK_ERROR)
+        {
             t = reconocerDispositivo(tk.lexema);
+
+            /* colores y modos */
+            if (t == TK_ERROR)
+            {
+                if (strcmp(tk.lexema, "BLANCO") == 0 ||
+                    strcmp(tk.lexema, "ROJO") == 0 ||
+                    strcmp(tk.lexema, "AZUL") == 0)
+                {
+                    t = TK_COLOR;
+                }
+                else if (strcmp(tk.lexema, "FRIO") == 0 ||
+                        strcmp(tk.lexema, "CALOR") == 0 ||
+                        strcmp(tk.lexema, "VENT") == 0)
+                {
+                    t = TK_MODO;
+                }
+            }
+
+            /* bools */
+            if (t == TK_ERROR)
+            {
+                if (strcmp(tk.lexema, "TRUE") == 0 ||
+                    strcmp(tk.lexema, "FALSE") == 0)
+                {
+                    t = TK_BOOL_SENSOR;
+                }
+                else if (strcmp(tk.lexema, "ON") == 0 ||
+                        strcmp(tk.lexema, "OFF") == 0)
+                {
+                    t = TK_BOOL_ACTUADOR;
+                }
+            }
+        }
 
         tk.tipo = t;
         return tk;
@@ -766,10 +801,28 @@ void siguienteToken(void)
 }
 
 /* Coincidencia del siguiente con lo esperado */
-void match(TokenType esperado) {
-    if (lookahead.tipo == esperado) {
+void match(TokenType esperado) 
+// {
+//     if (lookahead.tipo == esperado) {
+//         siguienteToken();
+//     } else {
+//         errorSintactico("Token inesperado");
+//     }
+// }
+{
+    if (lookahead.tipo == esperado)
+    {
+        printf("MATCH OK: %s\n", lookahead.lexema);
         siguienteToken();
-    } else {
+    }
+    else
+    {
+        printf("MATCH FAIL\n");
+        printf("esperado: %d\n", esperado);
+        printf("recibido: %d (%s)\n",
+               lookahead.tipo,
+               lookahead.lexema);
+
         errorSintactico("Token inesperado");
     }
 }
