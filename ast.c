@@ -155,118 +155,205 @@ ListaAST *agregarInstruccion(ListaAST *lista, NodoAST *nodo)
 
 /* ===================== IMPRESIÓN ===================== */
 
-static void imprimirNodo(NodoAST *nodo, int nivel);
+static void imprimirNodo(NodoAST *nodo, int nivel, int *ultimos, int esUltimo);
+static void imprimirLista(ListaAST *lista, int nivel, int *ultimos);
+static void imprimirPrefijo(int nivel, int *ultimos);
 
-static void indent(int n)
+static void imprimirPrefijo(int nivel, int *ultimos)
 {
-    for (int i = 0; i < n; i++)
-        printf("  ");
+    if (nivel == 0)
+        return;
+
+    for (int i = 1; i < nivel; i++)
+    {
+        if (ultimos[i])
+            printf("    ");
+        else
+            printf("│   ");
+    }
+
+    if (ultimos[nivel])
+        printf("└── ");
+    else
+        printf("├── ");
 }
 
 void imprimirAST(NodoAST *raiz)
 {
-    imprimirNodo(raiz, 0);
+    int ultimos[128] = {0};
+
+    imprimirNodo(raiz, 0, ultimos, 1);
 }
 
-static void imprimirLista(ListaAST *lista, int nivel)
+static void imprimirLista(ListaAST *lista, int nivel, int *ultimos)
 {
     while (lista)
     {
-        imprimirNodo(lista->nodo, nivel);
+        int esUltimo = (lista->sig == NULL);
+
+        imprimirNodo(lista->nodo, nivel, ultimos, esUltimo);
+
         lista = lista->sig;
     }
 }
 
-static void imprimirNodo(NodoAST *nodo, int nivel)
+static void imprimirNodo(NodoAST *nodo, int nivel, int *ultimos, int esUltimo)
 {
     if (!nodo)
         return;
 
-    indent(nivel);
+    ultimos[nivel] = esUltimo;
+
+    imprimirPrefijo(nivel, ultimos);
 
     switch (nodo->tipo)
     {
         case AST_PROGRAMA:
             printf("PROGRAMA\n");
-            imprimirLista(nodo->programa.instrucciones, nivel + 1);
+            imprimirLista(nodo->programa.instrucciones, nivel + 1, ultimos);
             break;
 
         case AST_IF:
             printf("IF\n");
 
-            indent(nivel + 1);
+            ultimos[nivel + 1] = 0;
+            imprimirPrefijo(nivel + 1, ultimos);
             printf("condicion:\n");
-            imprimirNodo(nodo->ifNodo.condicion, nivel + 2);
+            imprimirNodo(nodo->ifNodo.condicion,
+                        nivel + 2,
+                        ultimos,
+                        1);
 
-            indent(nivel + 1);
+            ultimos[nivel + 1] = (nodo->ifNodo.elseBloque == NULL);
+
+            imprimirPrefijo(nivel + 1, ultimos);
             printf("then:\n");
-            imprimirLista(nodo->ifNodo.thenBloque, nivel + 2);
+            imprimirLista(nodo->ifNodo.thenBloque,
+                        nivel + 2,
+                        ultimos);
 
             if (nodo->ifNodo.elseBloque)
             {
-                indent(nivel + 1);
+                ultimos[nivel + 1] = 1;
+
+                imprimirPrefijo(nivel + 1, ultimos);
                 printf("else:\n");
-                imprimirLista(nodo->ifNodo.elseBloque, nivel + 2);
+
+                imprimirLista(nodo->ifNodo.elseBloque,
+                            nivel + 2,
+                            ultimos);
             }
             break;
 
         case AST_WHEN:
             printf("WHEN\n");
-            indent(nivel + 1);
-            printf("condicion:\n");
-            imprimirNodo(nodo->when.condicion, nivel + 2);
 
-            indent(nivel + 1);
+            ultimos[nivel + 1] = 0;
+            imprimirPrefijo(nivel + 1, ultimos);
+            printf("condicion:\n");
+
+            imprimirNodo(nodo->when.condicion,
+                        nivel + 2,
+                        ultimos,
+                        1);
+
+            ultimos[nivel + 1] = 1;
+            imprimirPrefijo(nivel + 1, ultimos);
             printf("bloque:\n");
-            imprimirLista(nodo->when.bloque, nivel + 2);
+
+            imprimirLista(nodo->when.bloque,
+                        nivel + 2,
+                        ultimos);
+
             break;
 
         case AST_EVERY:
             printf("EVERY %s\n", nodo->every.tiempo.lexema);
-            imprimirLista(nodo->every.bloque, nivel + 1);
+
+            imprimirLista(nodo->every.bloque,
+                        nivel + 1,
+                        ultimos);
+
             break;
 
         case AST_ASIGNACION:
             printf("ASIGNACION %s.%s\n",
-                   nodo->actuadorExpr.dispositivo.lexema,
-                   nodo->actuadorExpr.atributo.lexema);
+                nodo->actuadorExpr.dispositivo.lexema,
+                nodo->actuadorExpr.atributo.lexema);
 
-            imprimirNodo(nodo->actuadorExpr.valor, nivel + 1);
+            imprimirNodo(nodo->actuadorExpr.valor,
+                        nivel + 1,
+                        ultimos,
+                        1);
+
             break;
 
         case AST_SENSOR_EXPR:
-            printf("SENSOR %s\n", nodo->sensorExpr.sensor.lexema);
+            printf("SENSOR %s\n",
+                nodo->sensorExpr.sensor.lexema);
 
-            imprimirNodo(nodo->sensorExpr.valor, nivel + 1);
+            imprimirNodo(nodo->sensorExpr.valor,
+                        nivel + 1,
+                        ultimos,
+                        1);
+
             break;
 
         case AST_ACTUADOR_EXPR:
             printf("ACTUADOR_EXPR %s.%s\n",
-                   nodo->actuadorExpr.dispositivo.lexema,
-                   nodo->actuadorExpr.atributo.lexema);
+                nodo->actuadorExpr.dispositivo.lexema,
+                nodo->actuadorExpr.atributo.lexema);
 
-            imprimirNodo(nodo->actuadorExpr.valor, nivel + 1);
+            imprimirNodo(nodo->actuadorExpr.valor,
+                        nivel + 1,
+                        ultimos,
+                        1);
+
             break;
 
         case AST_LITERAL:
-            printf("LITERAL: %s\n", nodo->lit.literal.lexema);
+            printf("VALOR: %s\n",
+                nodo->lit.literal.lexema);
             break;
 
         case AST_NOT:
             printf("NOT\n");
-            imprimirNodo(nodo->un.expr, nivel + 1);
+
+            imprimirNodo(nodo->un.expr,
+                        nivel + 1,
+                        ultimos,
+                        1);
+
             break;
 
         case AST_AND:
             printf("AND\n");
-            imprimirNodo(nodo->bin.izq, nivel + 1);
-            imprimirNodo(nodo->bin.der, nivel + 1);
+
+            imprimirNodo(nodo->bin.izq,
+                        nivel + 1,
+                        ultimos,
+                        0);
+
+            imprimirNodo(nodo->bin.der,
+                        nivel + 1,
+                        ultimos,
+                        1);
+
             break;
 
         case AST_OR:
             printf("OR\n");
-            imprimirNodo(nodo->bin.izq, nivel + 1);
-            imprimirNodo(nodo->bin.der, nivel + 1);
+
+            imprimirNodo(nodo->bin.izq,
+                        nivel + 1,
+                        ultimos,
+                        0);
+
+            imprimirNodo(nodo->bin.der,
+                        nivel + 1,
+                        ultimos,
+                        1);
+
             break;
 
         default:
