@@ -8,7 +8,9 @@
 #include "lexer.h"
 #include "parser.h"
 #include "ast.h"
-
+#include "interpreter.h"
+#include "estado.h"
+#include "html.h"
 
 static void modoInteractivo(void)
 {
@@ -71,6 +73,26 @@ int main(int argc, char *argv[])
     {
         NodoAST *raiz = parsePrograma();
         imprimirAST(raiz);
+        liberarAST(raiz);
+    }
+    else if (strcmp(mode, "html") == 0)
+    {
+        NodoAST *raiz = parsePrograma();
+
+        EstadoSistema estado;
+
+        interpretarPrograma(raiz, &estado);
+
+        generarHTML("salida.html", &estado);
+
+        #ifdef __linux__
+            system("xdg-open salida.html");
+        #elif _WIN32
+            system("start salida.html");
+        #elif __APPLE__
+            system("open salida.html");
+        #endif
+        
         liberarAST(raiz);
     }
     else

@@ -6,7 +6,7 @@ CC      := gcc
 CFLAGS  := -Wall -Wextra -std=c11 -g
 
 TARGET  := smart
-SRC     := main.c config.c lexer.c parser.c ast.c
+SRC     := main.c config.c lexer.c parser.c ast.c estado.c interpreter.c html.c
 OBJ     := $(SRC:.c=.o)
 
 # =========================

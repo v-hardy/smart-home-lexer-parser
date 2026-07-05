@@ -1,11 +1,10 @@
+.githooks/
+
 # Ejecutables compilados
-lexer
-test_lexer
+smart
 
 # Artefactos de compilación
 *.o
-*.out
-*.dSYM/
 
-# Artefactos de tooling
-docs/superpowers/
+# HTMLs
+*.html
