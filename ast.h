@@ -12,8 +12,6 @@ typedef enum
 {
     AST_PROGRAMA,
 
-    AST_LISTA,
-
     AST_WHEN,
     AST_EVERY,
     AST_IF,
@@ -51,14 +49,14 @@ struct NodoAST
         struct
         {
             NodoAST *condicion;
-            NodoAST *bloque;
+            ListaAST *bloque;
         } when;
 
         /* EVERY */
         struct
         {
             Token tiempo;
-            NodoAST *bloque;
+            ListaAST *bloque;
         } every;
 
         /* IF */
@@ -149,5 +147,7 @@ ListaAST *agregarInstruccion(ListaAST *lista, NodoAST *nodo);
 void imprimirAST(NodoAST *raiz);
 
 void liberarAST(NodoAST *raiz);
+
+void liberarListaAST(ListaAST *lista);
 
 #endif

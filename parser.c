@@ -2,31 +2,33 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include "parser.h"
+#include "config.h"
+#include "ast.h"
 #include "lexer.h"
 
 
 // <======================================= Prototipos internos =======================================>
 
-static void parseInstruccion(void);
+static NodoAST *parseInstruccion(void);
 static bool iniciaInstruccion(TokenType t);
 
-static void parseBloqueWhen(void);
-static void parseBloqueEvery(void);
-static void parseBloqueCondicional(void);
-static void parseAsignacion(void);
+static NodoAST *parseBloqueWhen(void);
+static NodoAST *parseBloqueEvery(void);
+static NodoAST *parseBloqueCondicional(void);
+static NodoAST *parseAsignacion(void);
 
-static void parseCondicion(void);
-static void parseOrExpr(void);
-static void parseAndExpr(void);
-static void parseNotExpr(void);
+static NodoAST *parseCondicion(void);
+static NodoAST *parseOrExpr(void);
+static NodoAST *parseAndExpr(void);
+static NodoAST *parseNotExpr(void);
 
-static void parseExpresionLogica(void);
-static void parseSensorExpr(void);
-static void parseActuadorExpr(void);
+static NodoAST *parseExpresionLogica(void);
+static NodoAST *parseSensorExpr(void);
+static NodoAST *parseActuadorExpr(void);
 
 static void parseOperComp(void);
 static void parseOperIgualdad(void);
+
 
 /* Reporte de error sintactico con posicion */
 void errorSintactico(const char *mensaje)
@@ -41,32 +43,42 @@ void errorSintactico(const char *mensaje)
 }
 
 //Instrucciones ::= Instruccion+
-void parsePrograma(void)
+NodoAST *parsePrograma(void)
 {
-    siguienteToken(); 
+    siguienteToken();
+
+    ListaAST *listaPrograma = NULL;
 
     while (lookahead.tipo != TK_EOF)
     {
-        parseInstruccion();
+        NodoAST *instr = parseInstruccion();
+        listaPrograma = agregarInstruccion(listaPrograma, instr);
     }
 
     match(TK_EOF);
 
-    printf("Programa sintácticamente correcto.\n");
+    NodoAST *astRoot = crearPrograma();
+    astRoot->programa.instrucciones = listaPrograma;
+
+    return astRoot;
 }
 
-void parseInstruccion(void) {
-    switch (lookahead.tipo) {
+NodoAST *parseInstruccion(void)
+{
+    NodoAST *nodo = NULL;
+
+    switch (lookahead.tipo)
+    {
         case TK_WHEN:
-            parseBloqueWhen();
+            nodo = parseBloqueWhen();
             break;
 
         case TK_EVERY:
-            parseBloqueEvery();
+            nodo = parseBloqueEvery();
             break;
 
         case TK_IF:
-            parseBloqueCondicional();
+            nodo = parseBloqueCondicional();
             break;
 
         case TK_FOCO_ID:
@@ -76,12 +88,14 @@ void parseInstruccion(void) {
         case TK_RELOJ_ID:
         case TK_ALTAVOZ_ID:
         case TK_ALARMA_ID:
-            parseAsignacion();
+            if (iniciaInstruccion(lookahead.tipo))
+                nodo = parseAsignacion();
             break;
 
         default:
             errorSintactico("Instrucción inválida");
     }
+    return nodo;
 }
 
 bool iniciaInstruccion(TokenType t)
@@ -105,103 +119,151 @@ bool iniciaInstruccion(TokenType t)
     }
 }
 
-void parseBloqueWhen(void)
+NodoAST *parseBloqueWhen(void)
 {
     match(TK_WHEN);
 
-    parseCondicion();
+    NodoAST *node = crearWhen(lookahead);
+
+    node->when.condicion = parseCondicion();
 
     match(TK_DO);
 
-    while(iniciaInstruccion(lookahead.tipo))
-        parseInstruccion();
+    ListaAST *bloque = NULL;
+
+    while (iniciaInstruccion(lookahead.tipo))
+    {
+        NodoAST *stmt = parseInstruccion();
+        bloque = agregarInstruccion(bloque, stmt);
+    }
+
+    node->when.bloque = bloque;
 
     match(TK_END);
+
+    return node;
 }
 
-void parseBloqueEvery(void)
+NodoAST *parseBloqueEvery(void)
 {
     match(TK_EVERY);
 
+    Token tiempo = lookahead;
     match(TK_TIEMPO);
+
+    NodoAST *node = crearEvery(tiempo);
 
     match(TK_DO);
 
-    while(iniciaInstruccion(lookahead.tipo))
-        parseInstruccion();
+    ListaAST *bloque = NULL;
+
+    while (iniciaInstruccion(lookahead.tipo))
+    {
+        NodoAST *stmt = parseInstruccion();
+        bloque = agregarInstruccion(bloque, stmt);
+    }
+
+    node->every.bloque = bloque;
 
     match(TK_END);
+
+    return node;
 }
 
-void parseBloqueCondicional(void)
+NodoAST *parseBloqueCondicional(void)
 {
     match(TK_IF);
 
-    parseCondicion();
+    NodoAST *ifNodo = crearIf(lookahead);
+
+    ifNodo->ifNodo.condicion = parseCondicion();
 
     match(TK_THEN);
 
-    while(iniciaInstruccion(lookahead.tipo))
-        parseInstruccion();
+    ListaAST *thenList = NULL;
 
-    if(lookahead.tipo == TK_ELSE)
+    while (iniciaInstruccion(lookahead.tipo))
+    {
+        NodoAST *stmt = parseInstruccion();
+        thenList = agregarInstruccion(thenList, stmt);
+    }
+
+    ifNodo->ifNodo.thenBloque = thenList;
+
+    if (lookahead.tipo == TK_ELSE)
     {
         match(TK_ELSE);
 
-        while(iniciaInstruccion(lookahead.tipo))
-            parseInstruccion();
+        ListaAST *elseList = NULL;
+
+        while (iniciaInstruccion(lookahead.tipo))
+        {
+            NodoAST *stmt = parseInstruccion();
+            elseList = agregarInstruccion(elseList, stmt);
+        }
+
+        ifNodo->ifNodo.elseBloque = elseList;
     }
 
     match(TK_END);
+
+    return ifNodo;
 }
 
-void parseCondicion(void)
+NodoAST *parseCondicion(void)
 {
-    parseOrExpr();
+    return parseOrExpr();
 }
 
-void parseOrExpr(void)
+NodoAST *parseOrExpr(void)
 {
-    parseAndExpr();
+    NodoAST *left = parseAndExpr();
 
-    while(lookahead.tipo == TK_OR)
+    while (lookahead.tipo == TK_OR)
     {
         match(TK_OR);
-        parseAndExpr();
+        NodoAST *right = parseAndExpr();
+        left = crearNodoBinario(AST_OR, left, right);
     }
+
+    return left;
 }
 
-void parseAndExpr(void)
+NodoAST *parseAndExpr(void)
 {
-    parseNotExpr();
+    NodoAST *left = parseNotExpr();
 
-    while(lookahead.tipo == TK_AND)
+    while (lookahead.tipo == TK_AND)
     {
         match(TK_AND);
-        parseNotExpr();
+        NodoAST *right = parseNotExpr();
+        left = crearNodoBinario(AST_AND, left, right);
     }
+
+    return left;
 }
 
-void parseNotExpr(void)
+NodoAST *parseNotExpr(void)
 {
-    if(lookahead.tipo == TK_NOT)
+    if (lookahead.tipo == TK_NOT)
     {
         match(TK_NOT);
-        parseNotExpr();
+        NodoAST *expr = parseNotExpr();
+        return crearNodoNot(expr);
     }
-    else if(lookahead.tipo == TK_PAR_IZQ)
+
+    if (lookahead.tipo == TK_PAR_IZQ)
     {
         match(TK_PAR_IZQ);
-        parseCondicion();
+        NodoAST *expr = parseCondicion();
         match(TK_PAR_DER);
+        return expr;
     }
-    else
-    {
-        parseExpresionLogica();
-    }
+
+    return parseExpresionLogica();
 }
 
-void parseExpresionLogica(void)
+NodoAST *parseExpresionLogica(void)
 {
     switch(lookahead.tipo)
     {
@@ -210,8 +272,7 @@ void parseExpresionLogica(void)
         case TK_SENSOR_LUZ:
         case TK_SENSOR_MOVIMIENTO:
         case TK_SENSOR_HUMO:
-            parseSensorExpr();
-            break;
+            return parseSensorExpr();
 
         case TK_FOCO_ID:
         case TK_AIRE_ID:
@@ -220,83 +281,164 @@ void parseExpresionLogica(void)
         case TK_RELOJ_ID:
         case TK_ALTAVOZ_ID:
         case TK_ALARMA_ID:
-            parseActuadorExpr();
-            break;
+            return parseActuadorExpr();
 
         default:
             errorSintactico("Se esperaba una expresión lógica");
+            return NULL;
     }
 }
 
-void parseSensorExpr(void)
+NodoAST *parseSensorExpr(void)
 {
+    Token sensor = lookahead;
+    Token operador;
+    Token valor;
+    NodoAST *nodo = NULL;
+
     switch(lookahead.tipo)
     {
         case TK_SENSOR_TEMP:
             match(TK_SENSOR_TEMP);
+
+            operador = lookahead;
             parseOperComp();
+
+            valor = lookahead;
             match(TK_TEMP);
+
+            nodo = crearSensorExpr(sensor, operador, NULL);
+            nodo->sensorExpr.valor = crearLiteral(valor);
             break;
 
         case TK_SENSOR_HUMEDAD:
             match(TK_SENSOR_HUMEDAD);
+
+            operador = lookahead;
             parseOperComp();
+
+            valor = lookahead;
             match(TK_PORCENTAJE);
+
+            nodo = crearSensorExpr(sensor, operador, NULL);
+            nodo->sensorExpr.valor = crearLiteral(valor);
             break;
 
         case TK_SENSOR_LUZ:
             match(TK_SENSOR_LUZ);
+
+            operador = lookahead;
             parseOperComp();
+
+            valor = lookahead;
             match(TK_LUX);
+
+            nodo = crearSensorExpr(sensor, operador, NULL);
+            nodo->sensorExpr.valor = crearLiteral(valor);
             break;
 
         case TK_SENSOR_MOVIMIENTO:
             match(TK_SENSOR_MOVIMIENTO);
+
+            operador = lookahead;
             parseOperIgualdad();
+
+            valor = lookahead;
             match(TK_BOOL_SENSOR);
+
+            nodo = crearSensorExpr(sensor, operador, NULL);
+            nodo->sensorExpr.valor = crearLiteral(valor);
             break;
 
         case TK_SENSOR_HUMO:
             match(TK_SENSOR_HUMO);
+
+            operador = lookahead;
             parseOperIgualdad();
+
+            valor = lookahead;
             match(TK_BOOL_SENSOR);
+
+            nodo = crearSensorExpr(sensor, operador, NULL);
+            nodo->sensorExpr.valor = crearLiteral(valor);
             break;
 
         default:
             errorSintactico("Sensor inválido");
     }
+
+    return nodo;
 }
 
-void parseActuadorExpr(void)
+NodoAST *parseActuadorExpr(void)
 {
+
+    NodoAST *lastExpr = NULL;
+
+    Token dispositivo = lookahead;
+
     switch (lookahead.tipo)
     {
         case TK_FOCO_ID:
             match(TK_FOCO_ID);
             match(TK_DELIMITADOR);
 
-            switch (lookahead.tipo)
             {
-                case TK_ATRIB_ESTADO:
-                    match(TK_ATRIB_ESTADO);
-                    parseOperIgualdad();
-                    match(TK_BOOL_ACTUADOR);
-                    break;
+                Token atributo;
+                Token operador;
+                Token valor;
+                NodoAST *nodo;
 
-                case TK_ATRIB_BRILLO:
-                    match(TK_ATRIB_BRILLO);
-                    parseOperComp();
-                    match(TK_PORCENTAJE);
-                    break;
+                switch (lookahead.tipo)
+                {
+                    case TK_ATRIB_ESTADO:
+                        atributo = lookahead;
+                        match(TK_ATRIB_ESTADO);
 
-                case TK_ATRIB_COLOR:
-                    match(TK_ATRIB_COLOR);
-                    parseOperIgualdad();
-                    match(TK_COLOR);
-                    break;
+                        operador = lookahead;
+                        parseOperIgualdad();
 
-                default:
-                    errorSintactico("Atributo inválido para FOCO");
+                        valor = lookahead;
+                        match(TK_BOOL_ACTUADOR);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    case TK_ATRIB_BRILLO:
+                        atributo = lookahead;
+                        match(TK_ATRIB_BRILLO);
+
+                        operador = lookahead;
+                        parseOperComp();
+
+                        valor = lookahead;
+                        match(TK_PORCENTAJE);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    case TK_ATRIB_COLOR:
+                        atributo = lookahead;
+                        match(TK_ATRIB_COLOR);
+
+                        operador = lookahead;
+                        parseOperIgualdad();
+
+                        valor = lookahead;
+                        match(TK_COLOR);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    default:
+                        errorSintactico("Atributo inválido para FOCO");
+                }
             }
             break;
 
@@ -304,34 +446,77 @@ void parseActuadorExpr(void)
             match(TK_AIRE_ID);
             match(TK_DELIMITADOR);
 
-            switch (lookahead.tipo)
             {
-                case TK_ATRIB_ESTADO:
-                    match(TK_ATRIB_ESTADO);
-                    parseOperIgualdad();
-                    match(TK_BOOL_ACTUADOR);
-                    break;
+                Token atributo;
+                Token operador;
+                Token valor;
+                NodoAST *nodo;
 
-                case TK_ATRIB_TEMP_O:
-                    match(TK_ATRIB_TEMP_O);
-                    parseOperComp();
-                    match(TK_TEMP);
-                    break;
+                switch (lookahead.tipo)
+                {
+                    case TK_ATRIB_ESTADO:
+                        atributo = lookahead;
+                        match(TK_ATRIB_ESTADO);
 
-                case TK_ATRIB_TEMP_A:
-                    match(TK_ATRIB_TEMP_A);
-                    parseOperComp();
-                    match(TK_TEMP);
-                    break;
+                        operador = lookahead;
+                        parseOperIgualdad();
 
-                case TK_ATRIB_MODO:
-                    match(TK_ATRIB_MODO);
-                    parseOperIgualdad();
-                    match(TK_MODO);
-                    break;
+                        valor = lookahead;
+                        match(TK_BOOL_ACTUADOR);
 
-                default:
-                    errorSintactico("Atributo inválido para AIRE");
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    case TK_ATRIB_TEMP_O:
+                        atributo = lookahead;
+                        match(TK_ATRIB_TEMP_O);
+
+                        operador = lookahead;
+                        parseOperComp();
+
+                        valor = lookahead;
+                        match(TK_TEMP);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    case TK_ATRIB_TEMP_A:
+                        atributo = lookahead;
+                        match(TK_ATRIB_TEMP_A);
+
+                        operador = lookahead;
+                        parseOperComp();
+
+                        valor = lookahead;
+                        match(TK_TEMP);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    case TK_ATRIB_MODO:
+                        atributo = lookahead;
+                        match(TK_ATRIB_MODO);
+
+                        operador = lookahead;
+                        parseOperIgualdad();
+
+                        valor = lookahead;
+                        match(TK_MODO);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    default:
+                        errorSintactico("Atributo inválido para AIRE");
+                }
             }
             break;
 
@@ -339,16 +524,31 @@ void parseActuadorExpr(void)
             match(TK_PERSIANA_ID);
             match(TK_DELIMITADOR);
 
-            switch (lookahead.tipo)
             {
-                case TK_ATRIB_POSICION:
-                    match(TK_ATRIB_POSICION);
-                    parseOperComp();
-                    match(TK_PORCENTAJE);
-                    break;
+                Token atributo = lookahead;
+                Token operador;
+                Token valor;
+                NodoAST *nodo;
 
-                default:
-                    errorSintactico("Atributo inválido para PERSIANA");
+                switch (lookahead.tipo)
+                {
+                    case TK_ATRIB_POSICION:
+                        match(TK_ATRIB_POSICION);
+
+                        operador = lookahead;
+                        parseOperComp();
+
+                        valor = lookahead;
+                        match(TK_PORCENTAJE);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    default:
+                        errorSintactico("Atributo inválido para PERSIANA");
+                }
             }
             break;
 
@@ -356,16 +556,32 @@ void parseActuadorExpr(void)
             match(TK_CERRADURA_ID);
             match(TK_DELIMITADOR);
 
-            switch (lookahead.tipo)
             {
-                case TK_ATRIB_ESTADO:
-                    match(TK_ATRIB_ESTADO);
-                    parseOperIgualdad();
-                    match(TK_BOOL_ACTUADOR);
-                    break;
+                Token atributo;
+                Token operador;
+                Token valor;
+                NodoAST *nodo;
 
-                default:
-                    errorSintactico("Atributo inválido para CERRADURA");
+                switch (lookahead.tipo)
+                {
+                    case TK_ATRIB_ESTADO:
+                        atributo = lookahead;
+                        match(TK_ATRIB_ESTADO);
+
+                        operador = lookahead;
+                        parseOperIgualdad();
+
+                        valor = lookahead;
+                        match(TK_BOOL_ACTUADOR);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    default:
+                        errorSintactico("Atributo inválido para CERRADURA");
+                }
             }
             break;
 
@@ -373,22 +589,47 @@ void parseActuadorExpr(void)
             match(TK_RELOJ_ID);
             match(TK_DELIMITADOR);
 
-            switch (lookahead.tipo)
             {
-                case TK_ATRIB_HORA:
-                    match(TK_ATRIB_HORA);
-                    parseOperComp();
-                    match(TK_HORA);
-                    break;
+                Token atributo;
+                Token operador;
+                Token valor;
+                NodoAST *nodo;
 
-                case TK_ATRIB_FECHA:
-                    match(TK_ATRIB_FECHA);
-                    parseOperIgualdad();
-                    match(TK_FECHA);
-                    break;
+                switch (lookahead.tipo)
+                {
+                    case TK_ATRIB_HORA:
+                        atributo = lookahead;
+                        match(TK_ATRIB_HORA);
 
-                default:
-                    errorSintactico("Atributo inválido para RELOJ");
+                        operador = lookahead;
+                        parseOperComp();
+
+                        valor = lookahead;
+                        match(TK_HORA);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    case TK_ATRIB_FECHA:
+                        atributo = lookahead;
+                        match(TK_ATRIB_FECHA);
+
+                        operador = lookahead;
+                        parseOperIgualdad();
+
+                        valor = lookahead;
+                        match(TK_FECHA);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    default:
+                        errorSintactico("Atributo inválido para RELOJ");
+                }
             }
             break;
 
@@ -396,34 +637,77 @@ void parseActuadorExpr(void)
             match(TK_ALTAVOZ_ID);
             match(TK_DELIMITADOR);
 
-            switch (lookahead.tipo)
             {
-                case TK_ATRIB_VOLUMEN:
-                    match(TK_ATRIB_VOLUMEN);
-                    parseOperComp();
-                    match(TK_PORCENTAJE);
-                    break;
+                Token atributo;
+                Token operador;
+                Token valor;
+                NodoAST *nodo;
 
-                case TK_ATRIB_MUTE:
-                    match(TK_ATRIB_MUTE);
-                    parseOperIgualdad();
-                    match(TK_BOOL_ACTUADOR);
-                    break;
+                switch (lookahead.tipo)
+                {
+                    case TK_ATRIB_VOLUMEN:
+                        atributo = lookahead;
+                        match(TK_ATRIB_VOLUMEN);
 
-                case TK_ATRIB_MENSAJE:
-                    match(TK_ATRIB_MENSAJE);
-                    parseOperIgualdad();
-                    match(TK_TEXTO);
-                    break;
+                        operador = lookahead;
+                        parseOperComp();
 
-                case TK_ATRIB_EMAIL_NOTIF:
-                    match(TK_ATRIB_EMAIL_NOTIF);
-                    parseOperIgualdad();
-                    match(TK_EMAIL);
-                    break;
+                        valor = lookahead;
+                        match(TK_PORCENTAJE);
 
-                default:
-                    errorSintactico("Atributo inválido para ALTAVOZ");
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    case TK_ATRIB_MUTE:
+                        atributo = lookahead;
+                        match(TK_ATRIB_MUTE);
+
+                        operador = lookahead;
+                        parseOperIgualdad();
+
+                        valor = lookahead;
+                        match(TK_BOOL_ACTUADOR);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    case TK_ATRIB_MENSAJE:
+                        atributo = lookahead;
+                        match(TK_ATRIB_MENSAJE);
+
+                        operador = lookahead;
+                        parseOperIgualdad();
+
+                        valor = lookahead;
+                        match(TK_TEXTO);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    case TK_ATRIB_EMAIL_NOTIF:
+                        atributo = lookahead;
+                        match(TK_ATRIB_EMAIL_NOTIF);
+
+                        operador = lookahead;
+                        parseOperIgualdad();
+
+                        valor = lookahead;
+                        match(TK_EMAIL);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    default:
+                        errorSintactico("Atributo inválido para ALTAVOZ");
+                }
             }
             break;
 
@@ -431,28 +715,55 @@ void parseActuadorExpr(void)
             match(TK_ALARMA_ID);
             match(TK_DELIMITADOR);
 
-            switch (lookahead.tipo)
             {
-                case TK_ATRIB_ESTADO:
-                    match(TK_ATRIB_ESTADO);
-                    parseOperIgualdad();
-                    match(TK_BOOL_ACTUADOR);
-                    break;
+                Token atributo;
+                Token operador;
+                Token valor;
+                NodoAST *nodo;
 
-                case TK_ATRIB_ACTIVADA:
-                    match(TK_ATRIB_ACTIVADA);
-                    parseOperIgualdad();
-                    match(TK_BOOL_ACTUADOR);
-                    break;
+                switch (lookahead.tipo)
+                {
+                    case TK_ATRIB_ESTADO:
+                        atributo = lookahead;
+                        match(TK_ATRIB_ESTADO);
 
-                default:
-                    errorSintactico("Atributo inválido para ALARMA");
+                        operador = lookahead;
+                        parseOperIgualdad();
+
+                        valor = lookahead;
+                        match(TK_BOOL_ACTUADOR);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    case TK_ATRIB_ACTIVADA:
+                        atributo = lookahead;
+                        match(TK_ATRIB_ACTIVADA);
+
+                        operador = lookahead;
+                        parseOperIgualdad();
+
+                        valor = lookahead;
+                        match(TK_BOOL_ACTUADOR);
+
+                        nodo = crearActuadorExpr(dispositivo, atributo, operador, NULL);
+                        nodo->actuadorExpr.valor = crearLiteral(valor);
+                        lastExpr = nodo;
+                        break;
+
+                    default:
+                        errorSintactico("Atributo inválido para ALARMA");
+                }
             }
             break;
 
         default:
             errorSintactico("Se esperaba un actuador");
     }
+
+    return lastExpr;
 }
 
 void parseOperComp(void)
@@ -497,8 +808,13 @@ void parseOperIgualdad(void)
     }
 }
 
-void parseAsignacion(void)
+NodoAST *parseAsignacion(void)
 {
+    Token dispositivo = lookahead;
+    Token atributo;
+    Token valor;
+    NodoAST *nodo = NULL;
+
     switch (lookahead.tipo)
     {
         case TK_FOCO_ID:
@@ -508,21 +824,33 @@ void parseAsignacion(void)
             switch (lookahead.tipo)
             {
                 case TK_ATRIB_ESTADO:
+                    atributo = lookahead;
                     match(TK_ATRIB_ESTADO);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_BOOL_ACTUADOR);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 case TK_ATRIB_BRILLO:
+                    atributo = lookahead;
                     match(TK_ATRIB_BRILLO);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_PORCENTAJE);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 case TK_ATRIB_COLOR:
+                    atributo = lookahead;
                     match(TK_ATRIB_COLOR);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_COLOR);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 default:
@@ -537,21 +865,33 @@ void parseAsignacion(void)
             switch (lookahead.tipo)
             {
                 case TK_ATRIB_ESTADO:
+                    atributo = lookahead;
                     match(TK_ATRIB_ESTADO);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_BOOL_ACTUADOR);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 case TK_ATRIB_TEMP_O:
+                    atributo = lookahead;
                     match(TK_ATRIB_TEMP_O);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_TEMP);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 case TK_ATRIB_MODO:
+                    atributo = lookahead;
                     match(TK_ATRIB_MODO);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_MODO);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 default:
@@ -562,17 +902,27 @@ void parseAsignacion(void)
         case TK_PERSIANA_ID:
             match(TK_PERSIANA_ID);
             match(TK_DELIMITADOR);
+
+            atributo = lookahead;
             match(TK_ATRIB_POSICION);
             match(TK_ASIGNACION);
+            valor = lookahead;
             match(TK_PORCENTAJE);
+
+            nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
             break;
 
         case TK_CERRADURA_ID:
             match(TK_CERRADURA_ID);
             match(TK_DELIMITADOR);
+
+            atributo = lookahead;
             match(TK_ATRIB_ESTADO);
             match(TK_ASIGNACION);
+            valor = lookahead;
             match(TK_BOOL_ACTUADOR);
+
+            nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
             break;
 
         case TK_ALTAVOZ_ID:
@@ -582,27 +932,43 @@ void parseAsignacion(void)
             switch (lookahead.tipo)
             {
                 case TK_ATRIB_VOLUMEN:
+                    atributo = lookahead;
                     match(TK_ATRIB_VOLUMEN);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_PORCENTAJE);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 case TK_ATRIB_MUTE:
+                    atributo = lookahead;
                     match(TK_ATRIB_MUTE);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_BOOL_ACTUADOR);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 case TK_ATRIB_MENSAJE:
+                    atributo = lookahead;
                     match(TK_ATRIB_MENSAJE);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_TEXTO);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 case TK_ATRIB_EMAIL_NOTIF:
+                    atributo = lookahead;
                     match(TK_ATRIB_EMAIL_NOTIF);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_EMAIL);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 default:
@@ -617,15 +983,23 @@ void parseAsignacion(void)
             switch (lookahead.tipo)
             {
                 case TK_ATRIB_ESTADO:
+                    atributo = lookahead;
                     match(TK_ATRIB_ESTADO);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_BOOL_ACTUADOR);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 case TK_ATRIB_ACTIVADA:
+                    atributo = lookahead;
                     match(TK_ATRIB_ACTIVADA);
                     match(TK_ASIGNACION);
+                    valor = lookahead;
                     match(TK_BOOL_ACTUADOR);
+
+                    nodo = crearAsignacion(dispositivo, atributo, crearLiteral(valor));
                     break;
 
                 default:
@@ -636,5 +1010,6 @@ void parseAsignacion(void)
         default:
             errorSintactico("Se esperaba una asignación");
     }
-}
 
+    return nodo;
+}

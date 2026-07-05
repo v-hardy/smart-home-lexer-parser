@@ -4,8 +4,11 @@
 #include <ctype.h>
 #include <string.h>
 
+#include "config.h"
 #include "lexer.h"
 #include "parser.h"
+#include "ast.h"
+
 
 static void modoInteractivo(void)
 {
@@ -59,7 +62,16 @@ int main(int argc, char *argv[])
     }
     else if (strcmp(mode, "parse") == 0)
     {
-        parsePrograma();  
+        modoDebugParse = 1;
+
+        NodoAST *raiz = parsePrograma();
+        liberarAST(raiz);
+    }
+    else if (strcmp(mode, "ast") == 0)
+    {
+        NodoAST *raiz = parsePrograma();
+        imprimirAST(raiz);
+        liberarAST(raiz);
     }
     else
     {

@@ -3,13 +3,9 @@
 #include <string.h>
 #include <ctype.h>
 
+#include "config.h"
 #include "lexer.h"
 
-// lexer.c
-//  ↓
-// lexer.h
-//  ↓
-// token.h
 
 // <======================================= Prototipos internos =======================================>
 
@@ -809,17 +805,12 @@ void siguienteToken(void)
 
 /* Coincidencia del siguiente con lo esperado */
 void match(TokenType esperado) 
-// {
-//     if (lookahead.tipo == esperado) {
-//         siguienteToken();
-//     } else {
-//         errorSintactico("Token inesperado");
-//     }
-// }
 {
     if (lookahead.tipo == esperado)
     {
-        printf("MATCH OK: %s\n", lookahead.lexema);
+        if (modoDebugParse)
+            printf("MATCH OK: %s\n", lookahead.lexema);
+
         siguienteToken();
     }
     else
@@ -834,7 +825,7 @@ void match(TokenType esperado)
     }
 }
 
-/* Modo debug: lexea el archivo e imprime cada token (no parsea) */
+/* Modo lexer imprime cada token (no parsea) */
 void volcarTokens(void)
 {
     Token tk;

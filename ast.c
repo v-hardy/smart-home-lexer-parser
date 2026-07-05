@@ -188,13 +188,7 @@ static void imprimirNodo(NodoAST *nodo, int nivel)
     {
         case AST_PROGRAMA:
             printf("PROGRAMA\n");
-            imprimirLista((ListaAST *)nodo->programa.instrucciones, nivel + 1);
-            break;
-
-        case AST_LISTA:
-            printf("LISTA\n");
-            imprimirNodo(nodo->list.head, nivel + 1);
-            imprimirNodo(nodo->list.next, nivel);
+            imprimirLista(nodo->programa.instrucciones, nivel + 1);
             break;
 
         case AST_IF:
@@ -224,12 +218,12 @@ static void imprimirNodo(NodoAST *nodo, int nivel)
 
             indent(nivel + 1);
             printf("bloque:\n");
-            imprimirNodo(nodo->when.bloque, nivel + 2);
+            imprimirLista(nodo->when.bloque, nivel + 2);
             break;
 
         case AST_EVERY:
             printf("EVERY %s\n", nodo->every.tiempo.lexema);
-            imprimirNodo(nodo->every.bloque, nivel + 1);
+            imprimirLista(nodo->every.bloque, nivel + 1);
             break;
 
         case AST_ASIGNACION:
@@ -258,11 +252,21 @@ static void imprimirNodo(NodoAST *nodo, int nivel)
             printf("LITERAL: %s\n", nodo->lit.literal.lexema);
             break;
 
-        case AST_OR:
-        case AST_AND:
         case AST_NOT:
-            printf("LOGICO\n");
+            printf("NOT\n");
             imprimirNodo(nodo->un.expr, nivel + 1);
+            break;
+
+        case AST_AND:
+            printf("AND\n");
+            imprimirNodo(nodo->bin.izq, nivel + 1);
+            imprimirNodo(nodo->bin.der, nivel + 1);
+            break;
+
+        case AST_OR:
+            printf("OR\n");
+            imprimirNodo(nodo->bin.izq, nivel + 1);
+            imprimirNodo(nodo->bin.der, nivel + 1);
             break;
 
         default:
@@ -282,17 +286,17 @@ void liberarAST(NodoAST *raiz)
     {
         case AST_IF:
             liberarAST(raiz->ifNodo.condicion);
-            liberarAST((NodoAST *)raiz->ifNodo.thenBloque);
-            liberarAST((NodoAST *)raiz->ifNodo.elseBloque);
+            liberarListaAST(raiz->ifNodo.thenBloque);
+            liberarListaAST(raiz->ifNodo.elseBloque);
             break;
 
         case AST_WHEN:
             liberarAST(raiz->when.condicion);
-            liberarAST(raiz->when.bloque);
+            liberarListaAST(raiz->when.bloque);
             break;
 
         case AST_EVERY:
-            liberarAST(raiz->every.bloque);
+            liberarListaAST(raiz->every.bloque);
             break;
 
         case AST_SENSOR_EXPR:
@@ -319,4 +323,18 @@ void liberarAST(NodoAST *raiz)
     }
 
     free(raiz);
+}
+
+void liberarListaAST(ListaAST *lista)
+{
+    while (lista)
+    {
+        ListaAST *sig = lista->sig;
+
+        liberarAST(lista->nodo);
+
+        free(lista);
+
+        lista = sig;
+    }
 }
