@@ -102,6 +102,7 @@ Se reconocen por prefijo seguido de un sufijo alfanumérico (ej: `foco_sala`, `a
 
 Las líneas que empiezan con `//` son ignoradas por el lexer.
 
+---
 ## Compilar
 
 ### Requisitos
@@ -121,10 +122,12 @@ make          # compila smart
 make clean    # elimina los binarios
 ```
 
+---
 ## Uso
 
 El ejecutable admite distintos modos de funcionamiento según la etapa del compilador que se desee ejecutar.
 
+---
 ### Modo interactivo
 
 Inicia un tokenizador interactivo. Cada línea ingresada se analiza y se muestran los tokens generados.
@@ -148,6 +151,8 @@ Tokeniza un archivo fuente y muestra todos los tokens reconocidos.
 ```bash
 ./smart tokens programa.smart
 ```
+
+---
 ### Modo lexer
 
 Lexea un archivo e imprime cada token con su posición:
@@ -240,7 +245,7 @@ También son válidas las siguientes opciones:
 
 Los archivos fuente deben poseer la extensión `.smart`.
 
-Ejemplo válido ya incorporados en el directorio:
+Ejemplos válidos ya incorporados en el directorio:
 
 ```text
 programa1.smart
