@@ -71,17 +71,17 @@ void generarHTML(const char *archivoSalida, EstadoSistema *estado)
 
     fprintf(f,
         "<h2>Temperatura</h2>\n"
-        "<p>%f °C</p>\n",
+        "<p>%.1f °C</p>\n",
         estado->sensores.temperatura);
 
     fprintf(f,
         "<h2>Humedad</h2>\n"
-        "<p>%f %%</p>\n",
+        "<p>%.0f %%</p>\n",
         estado->sensores.humedad);
 
     fprintf(f,
         "<h2>Luz</h2>\n"
-        "<p>%f lux</p>\n",
+        "<p>%.0f lux</p>\n",
         estado->sensores.luz);
 
     fprintf(f,

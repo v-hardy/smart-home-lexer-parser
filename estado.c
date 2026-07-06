@@ -50,13 +50,12 @@ Actuador *crearActuador(EstadoSistema *estado, Token dispositivo)
 
 Actuador *obtenerActuador(EstadoSistema *estado, Token dispositivo)
 {
-    Actuador *a =
-        buscarActuador(estado, dispositivo.lexema);
+    Actuador *act = buscarActuador(estado, dispositivo.lexema);
 
-    if (a == NULL)
-        a = crearActuador(estado, dispositivo);
+    if (act != NULL)
+        return act;
 
-    return a;
+    return crearActuador(estado, dispositivo);
 }
 
 
@@ -80,22 +79,22 @@ Atributo *buscarAtributo(Actuador *actuador, const char *nombre)
 
 void establecerAtributo(Actuador *actuador, Token atributo, Token valor)
 {
-    Atributo *a =
-        buscarAtributo(actuador, atributo.lexema);
+    Atributo *atr = buscarAtributo(actuador, atributo.lexema);
 
-    if (a == NULL)
+    if (atr == NULL)
     {
-        a = malloc(sizeof(Atributo));
+        atr = malloc(sizeof(Atributo));
 
-        strcpy(a->nombre,
-               atributo.lexema);
+        if (atr == NULL)
+            return;
 
-        a->sig = actuador->atributos;
+        strcpy(atr->nombre, atributo.lexema);
 
-        actuador->atributos = a;
+        atr->sig = actuador->atributos;
+        actuador->atributos = atr;
     }
 
-    a->valor = valor;
+    atr->valor = valor;
 }
 
 

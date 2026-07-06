@@ -277,7 +277,7 @@ static void imprimirNodo(NodoAST *nodo, int nivel, int *ultimos, int esUltimo)
             break;
 
         case AST_ASIGNACION:
-            printf("ASIGNACION %s.%s\n",
+            printf("ASIGNAR A %s.%s\n",
                 nodo->actuadorExpr.dispositivo.lexema,
                 nodo->actuadorExpr.atributo.lexema);
 
@@ -289,20 +289,18 @@ static void imprimirNodo(NodoAST *nodo, int nivel, int *ultimos, int esUltimo)
             break;
 
         case AST_SENSOR_EXPR:
-            printf("SENSOR %s\n",
-                nodo->sensorExpr.sensor.lexema);
+            printf("DISPOSITIVO %s (%s)\n",
+                nodo->sensorExpr.sensor.lexema,
+                nodo->sensorExpr.operador.lexema);
 
-            imprimirNodo(nodo->sensorExpr.valor,
-                        nivel + 1,
-                        ultimos,
-                        1);
-
+            imprimirNodo(nodo->sensorExpr.valor, nivel + 1, ultimos, 1);
             break;
 
         case AST_ACTUADOR_EXPR:
-            printf("ACTUADOR_EXPR %s.%s\n",
+            printf("ACTUADOR_EXPR %s.%s (%s)\n",
                 nodo->actuadorExpr.dispositivo.lexema,
-                nodo->actuadorExpr.atributo.lexema);
+                nodo->actuadorExpr.atributo.lexema,
+                nodo->actuadorExpr.operador.lexema);
 
             imprimirNodo(nodo->actuadorExpr.valor,
                         nivel + 1,

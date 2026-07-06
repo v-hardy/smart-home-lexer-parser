@@ -619,12 +619,13 @@ Token obtenerSiguienteToken(void)
         int i = 0;
         while (!finDeArchivo() &&
             (isalnum(obtenerCaracterActual()) ||
-                obtenerCaracterActual() == '_' ||
-                obtenerCaracterActual() == '@' ||
-                obtenerCaracterActual() == '-'))
+            obtenerCaracterActual() == '_' ||
+            obtenerCaracterActual() == '@' ||
+            obtenerCaracterActual() == '-'))
         {
             if (i < MAX_LEXEMA_IDX)
-                tk.lexema[i++] = (char)obtenerCaracterActual();
+                tk.lexema[i++] = (char)toupper((unsigned char)obtenerCaracterActual());
+
             avanzarCaracter();
         }
         tk.lexema[i] = '\0';

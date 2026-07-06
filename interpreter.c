@@ -3,6 +3,19 @@
 
 #include "interpreter.h"
 
+void errorSintactico(const char *mensaje);
+
+static bool parseBool(Token t)
+{
+    if(strcmp(t.lexema, "TRUE") == 0)
+        return true;
+
+    if(strcmp(t.lexema, "FALSE") == 0)
+        return false;
+
+    errorSintactico("Se esperaba TRUE/FALSE)");
+    return false;
+}
 
 /*------------------------------------------
     Sensores simulados
@@ -10,11 +23,13 @@
 
 static void cargarSensores(EstadoSistema *estado)
 {
+    estado->actuadores = NULL;
+
     estado->sensores.temperatura = 27.0;
     estado->sensores.humedad = 45.0;
-    estado->sensores.luz = 600.0;
-    estado->sensores.movimiento = false;
-    estado->sensores.humo = false;
+    estado->sensores.luz = 100.0;
+    estado->sensores.movimiento = true;
+    estado->sensores.humo = true;
 }
 
 
@@ -24,7 +39,7 @@ static void cargarSensores(EstadoSistema *estado)
 
 static bool evaluarSensorExpr(NodoAST *expr, EstadoSistema *estado)
 {
-    int sensor = 0;
+    double sensor = 0;
 
     switch(expr->sensorExpr.sensor.tipo)
     {
@@ -41,11 +56,11 @@ static bool evaluarSensorExpr(NodoAST *expr, EstadoSistema *estado)
             break;
 
         case TK_SENSOR_MOVIMIENTO:
-            sensor = estado->sensores.movimiento;
+            sensor = estado->sensores.movimiento ? 1 : 0;
             break;
 
         case TK_SENSOR_HUMO:
-            sensor = estado->sensores.humo;
+            sensor = estado->sensores.humo ? 1 : 0;
             break;
 
         default:
@@ -55,7 +70,17 @@ static bool evaluarSensorExpr(NodoAST *expr, EstadoSistema *estado)
     Token op = expr->sensorExpr.operador;
     Token valor = expr->sensorExpr.valor->lit.literal;
 
-    int rhs = atoi(valor.lexema);
+    double rhs;
+
+    // detectar booleanos o números
+    if(strcmp(valor.lexema, "TRUE") == 0 || strcmp(valor.lexema, "FALSE") == 0)
+    {
+        rhs = parseBool(valor) ? 1 : 0;
+    }
+    else
+    {
+        rhs = atof(valor.lexema);
+    }
 
     switch(op.tipo)
     {
@@ -188,4 +213,5 @@ void interpretarPrograma(NodoAST *raiz, EstadoSistema *estado)
     cargarSensores(estado);
 
     ejecutarLista(raiz->programa.instrucciones, estado);
+    
 }

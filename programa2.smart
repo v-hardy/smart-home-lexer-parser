@@ -7,7 +7,7 @@ WHEN SENSOR_LUZ < 250lux DO
 END 
 // Gestion inteligente del aire acondicionado 
 WHEN sensor_movimiento == TRUE do 
-	if sensor_temp_int > 26°C THEN 
+	if sensor_temp > 26°C THEN 
 		aire_acondicionado.estado = ON 
 		aire_acondicionado.modo = FRIO 
 		aire_acondicionado.temp_obj = 22°C 
@@ -15,21 +15,21 @@ WHEN sensor_movimiento == TRUE do
 		aire_acondicionado.estado = OFF 
 	END 
 END 
-Every 30m DO 
-	IF reloj_cocina.fecha > 01/01/2005 OR reloj_cocina.hora > 22:00 AND alarma_casa.estado == OFF THEN 
+Every 30min DO 
+	IF reloj_cocina.fecha != 01/01/2005 OR reloj_cocina.hora > 22:00 AND alarma_casa.estado == OFF THEN 
 		persiana_sala.posicion = 0%
 		cerradura_principal.estado = ON 
 		altavoz_comedor.volumen = 0% 
 		altavoz_comedor.mensaje = "Son las 22hs, hora de dormir" 
-		altavoz_comedor.email_notif = felipe@smart-home.com.ar 
+		altavoz_comedor.email_notif = felipe@@@smarthome.com.ar
 	END 
 END 
-IF sensor_humo == TRUE AND aire_acondicionado.estado == OFF THEN 
+IF sensor_humo == true AND sensor_movimiento == true THEN 
 	AIRE_acondicionado.estado = on
 	aire_acondicionado.modo = VENT 
-	aire_acondicionado.temp_obj = 22°C 
+	aire_acondicionado.temp_obj = 18°C 
 	cerradura_principal.estado = OFF 
 	persiana_comedor.posicion = 100% 
 	altavoz_comedor.mensaje = "PELIGRO. HUMO DETECTADO" 
-	altavoz_comedor.email_notif = bomberos@smart-home.com.ar 
+	altavoz_comedor.email_notif = bomberos@smarthome.com.ar.ar
 END
