@@ -102,7 +102,7 @@ Se reconocen por prefijo seguido de un sufijo alfanumérico (ej: `foco_sala`, `a
 
 Las líneas que empiezan con `//` son ignoradas por el lexer.
 
-## Compilar y testear
+## Compilar
 
 ### Requisitos
 
@@ -113,29 +113,44 @@ Las líneas que empiezan con `//` son ignoradas por el lexer.
 | macOS | `xcode-select --install` |
 | Windows | WSL recomendado |
 
-### Setup del pre-commit hook (una vez)
-
-```bash
-git config core.hooksPath .githooks
-```
-
-Cancela el commit automáticamente si los tests fallan.
 
 ### Comandos
 
 ```bash
-make          # compila el lexer → genera ./lexer
-make test     # compila y corre los tests unitarios
+make          # compila smart
 make clean    # elimina los binarios
 ```
 
-### Modo --tokens
+## Uso
 
-Lexea un archivo e imprime cada token con su posición:
+El ejecutable admite distintos modos de funcionamiento según la etapa del compilador que se desee ejecutar.
+
+### Modo interactivo
+
+Inicia un tokenizador interactivo. Cada línea ingresada se analiza y se muestran los tokens generados.
 
 ```bash
-./lexer programa.smart --tokens
+./smart
 ```
+
+Salir escribiendo:
+
+```text
+exit
+```
+
+---
+
+### Análisis léxico
+
+Tokeniza un archivo fuente y muestra todos los tokens reconocidos.
+
+```bash
+./smart tokens programa.smart
+```
+### Modo lexer
+
+Lexea un archivo e imprime cada token con su posición:
 
 Salida (formato `[línea:columna] TIPO 'lexema'`):
 
@@ -147,13 +162,96 @@ Salida (formato `[línea:columna] TIPO 'lexema'`):
 [1:25] TK_DO           'DO'
 ```
 
-El archivo fuente debe tener extensión `.smart`.
+---
 
-## Tests
+### Análisis sintáctico
+
+Ejecuta el parser mostrando el proceso de reconocimiento mediante los mensajes `MATCH`.
 
 ```bash
-make test
-# Resultados: 123 pasaron, 0 fallaron.
+./smart parse programa.smart
 ```
 
-Los tests no tocan disco — el lexer se alimenta desde strings en memoria vía `lexerInitDesdeString()`.
+---
+
+### Visualización del AST
+
+Construye e imprime el Árbol de Sintaxis Abstracta (AST).
+
+```bash
+./smart ast programa.smart
+```
+
+---
+
+### Generación de HTML
+
+Interpreta el programa y genera el archivo `salida.html` con el estado resultante del sistema.
+
+```bash
+./smart html programa.smart
+```
+
+---
+
+### Ejecución completa
+
+Realiza todo el proceso:
+
+1. Análisis léxico.
+2. Análisis sintáctico.
+3. Construcción del AST.
+4. Interpretación.
+5. Generación de `salida.html`.
+6. Apertura automática del archivo HTML en el navegador predeterminado.
+
+Utilizando el archivo por defecto (`programa1.smart`):
+
+```bash
+./smart run
+```
+
+O indicando un archivo:
+
+```bash
+./smart run programa2.smart
+```
+
+---
+
+### Mostrar ayuda
+
+El ejecutable incorpora un sistema de ayuda integrado que puede consultarse desde la línea de comandos.
+
+```bash
+./smart help
+```
+
+También son válidas las siguientes opciones:
+
+```bash
+./smart -h
+./smart --help
+```
+
+---
+
+## Restricciones
+
+Los archivos fuente deben poseer la extensión `.smart`.
+
+Ejemplo válido ya incorporados en el directorio:
+
+```text
+programa1.smart
+programa2.smart
+programa3.smart
+```
+
+Ejemplos inválidos:
+
+```text
+programa1.txt
+programa1
+config.dsl
+```

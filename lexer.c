@@ -447,7 +447,7 @@ static Token leerNumeroConUnidad(Token tk)
         unidad[j] = '\0';
         tk.lexema[i] = '\0';
 
-        if (strcmp(unidad, "h") == 0 || strcmp(unidad, "min") == 0)
+        if (strcmp(unidad, "h") == 0 || strcmp(unidad, "m") == 0)
             tk.tipo = TK_TIEMPO;
         else if (strcmp(unidad, "lux") == 0)
             tk.tipo = TK_LUX;
@@ -693,7 +693,7 @@ Token obtenerSiguienteToken(void)
         return tk;
     }
 
-    /* Literales numericos con unidad o literal de hora: HH:MM*: 30°C, 80%, 2h, 30min, 500lux, HH:MM. */
+    /* Literales numericos con unidad o literal de hora: HH:MM*: 30°C, 80%, 2h, 30m, 500lux, HH:MM. */
     if (isdigit(c))
     {
         return leerNumeroConUnidad(tk);
