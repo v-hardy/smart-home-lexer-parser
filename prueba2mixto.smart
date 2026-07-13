@@ -1,0 +1,23 @@
+// ERROR LÉXICO INTENCIONAL: "30grados" no es una unidad válida en el lenguaje.
+// El lexer debe atrapar esto como TK_ERROR e imprimir la línea/columna.
+WHEN SENSOR_TEMP > 30grados DO
+    AIRE_COMEDOR.ESTADO = ON
+END
+
+// Caso D: Actuador en condición compuesta (AND)
+// El intérprete evalúa SENSOR_HUMEDAD bien, pero PERSIANA_SALA.POSICION cae en el bug (false).
+// Resultado: Toda la condición AND se vuelve falsa.
+WHEN SENSOR_HUMEDAD > 60% DO
+    IF PERSIANA_SALA.POSICION == 100% AND AIRE_COMEDOR.ESTADO == OFF THEN
+        AIRE_COMEDOR.ESTADO = ON
+        AIRE_COMEDOR.MODO = VENT
+    END
+END
+
+// Caso E: Actuador en condición compuesta (OR)
+// Ambas condiciones dependen de actuadores, ambas caen en el bug (false OR false = false).
+EVERY 30m DO
+    IF RELOJ_SALA.HORA < 06:00 OR ALARMA_CASA.ACTIVADA == ON THEN
+        CERRADURA_PRINCIPAL.ESTADO = ON
+    END
+END

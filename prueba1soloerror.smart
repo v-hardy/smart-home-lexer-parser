@@ -1,0 +1,21 @@
+// Caso A: Condición simple de igualdad con Booleano (ESTADO)
+WHEN ALARMA_CASA.ESTADO == OFF DO
+    ALTAVOZ_SALA.MENSAJE = "Intruso detectado"
+    ALTAVOZ_SALA.VOLUMEN = 100%
+END
+
+// Caso B: Condición matemática con Tiempo (HORA)
+EVERY 1h DO
+    IF RELOJ_COCINA.HORA > 18:00 THEN
+        FOCO_COCINA.ESTADO = ON
+        FOCO_COCINA.BRILLO = 80%
+    END
+END
+
+// Caso C: Condición de igualdad encadenada con NOT (MODO)
+WHEN SENSOR_MOVIMIENTO == TRUE DO
+    IF AIRE_SALA.MODO != calor AND SENSOR_TEMP < -1°C THEN
+        AIRE_SALA.ESTADO = ON
+        AIRE_SALA.MODO = CALOR
+    END
+END

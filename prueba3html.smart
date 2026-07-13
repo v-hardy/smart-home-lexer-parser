@@ -1,0 +1,30 @@
+// BLOQUE SANO: Solo depende de un sensor. 
+// Esto SI se ejecuta. FOCO_PATIO aparecerá perfectamente en el HTML.
+WHEN SENSOR_LUZ < 100lux DO
+    FOCO_PATIO.ESTADO = ON
+    FOCO_PATIO.BRILLO = 300%
+    FOCO_PATIO.COLOR = BLANCO
+END
+
+// BLOQUE FANTASMA: Depende del RELOJ.
+// Cae en el bug. Como nunca se ejecuta la asignación, PERSIANA_SALA jamás 
+// se guarda en la memoria dinámica. Desaparece del HTML.
+EVERY 1h DO
+    IF RELOJ_COMEDOR.HORA >= 00:00 THEN
+        PERSIANA_SALA.POSICION = 0%
+        CERRADURA_PRINCIPAL.ESTADO = ON
+    END
+END
+
+// BLOQUE CON ESTADO INCORRECTO: SENSOR_MOVIMIENTO es true por defecto (simulado en interpreter.c).
+// Entra al WHEN, pero el IF depende de FOCO_PATIO.ESTADO. 
+// Como eso cae en el bug (evalúa false), se va por el ELSE. 
+// Resultado en HTML: AIRE_SALA aparece, pero en OFF, cuando debía estar en ON.
+WHEN SENSOR_MOVIMIENTO == TRUE DO
+    IF FOCO_PATIO.ESTADO == ON THEN
+        AIRE_SALA.ESTADO = ON
+        AIRE_SALA.TEMP_OBJ = 22°C
+    ELSE
+        AIRE_SALA.ESTADO = OFF
+    END
+END

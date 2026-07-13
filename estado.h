@@ -9,8 +9,9 @@
 typedef struct
 {
     float temperatura;
-    float humedad;
-    float luz;
+
+    int humedad;
+    int luz;
 
     bool movimiento;
     bool humo;
